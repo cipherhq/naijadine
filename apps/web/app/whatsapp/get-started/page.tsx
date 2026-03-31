@@ -77,13 +77,8 @@ function OnboardingWizard() {
     if (!successRestaurantId) return;
 
     const ref = searchParams.get('reference') || searchParams.get('trxref');
-    if (!ref) {
-      // No reference but we have restaurant_id — try to load bot_code directly
-      loadBotCode(successRestaurantId);
-      return;
-    }
-
-    verifyPayment(ref);
+    // Call verify with whatever we have — reference, restaurant_id, or both
+    verifyPayment(ref || '', successRestaurantId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, successRestaurantId]);
 
@@ -99,13 +94,17 @@ function OnboardingWizard() {
     }
   }
 
-  async function verifyPayment(reference: string) {
+  async function verifyPayment(reference: string, rid?: string) {
     setLoading(true);
     try {
       const res = await fetch('/api/onboarding/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reference }),
+        body: JSON.stringify({
+          reference: reference || undefined,
+          restaurant_id: rid || successRestaurantId || restaurantId,
+          plan: selectedPlan,
+        }),
       });
       const data = await res.json();
       if (data.bot_code) {

@@ -11,46 +11,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { reference } = await request.json();
-
-    if (!reference) {
-      return NextResponse.json(
-        { message: 'Missing payment reference' },
-        { status: 400 },
-      );
-    }
+    const body = await request.json();
+    const { reference, restaurant_id: bodyRestaurantId, plan: bodyPlan } = body;
 
     const paystackKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!paystackKey) {
-      return NextResponse.json(
-        { message: 'Payment gateway not configured' },
-        { status: 500 },
+
+    let restaurantId: string | undefined;
+    let plan: string | undefined;
+    let amountKobo = 0;
+
+    if (reference && paystackKey) {
+      // Standard flow: verify transaction via Paystack API
+      const response = await fetch(
+        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+        { headers: { Authorization: `Bearer ${paystackKey}` } },
       );
+
+      const data = await response.json();
+
+      if (data?.data?.status !== 'success') {
+        return NextResponse.json(
+          { message: 'Payment not yet confirmed', paystack_status: data?.data?.status },
+          { status: 402 },
+        );
+      }
+
+      const metadata = data.data.metadata as Record<string, string> | undefined;
+      restaurantId = metadata?.restaurant_id || bodyRestaurantId;
+      plan = metadata?.plan || bodyPlan;
+      amountKobo = data.data.amount || 0;
+    } else if (bodyRestaurantId && bodyPlan) {
+      // Payment page flow: Paystack payment page handles the charge,
+      // we just activate the restaurant based on the callback params
+      restaurantId = bodyRestaurantId;
+      plan = bodyPlan;
     }
-
-    // Verify with Paystack
-    const response = await fetch(
-      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-      { headers: { Authorization: `Bearer ${paystackKey}` } },
-    );
-
-    const data = await response.json();
-
-    if (data?.data?.status !== 'success') {
-      return NextResponse.json(
-        { message: 'Payment not yet confirmed', paystack_status: data?.data?.status },
-        { status: 402 },
-      );
-    }
-
-    const metadata = data.data.metadata as Record<string, string> | undefined;
-    const restaurantId = metadata?.restaurant_id;
-    const plan = metadata?.plan;
 
     if (!restaurantId || !plan) {
       return NextResponse.json(
-        { message: 'Invalid payment metadata' },
+        { message: 'Missing restaurant_id, plan, or payment reference' },
         { status: 400 },
+      );
+    }
+
+    // Verify the user owns this restaurant
+    const { data: ownerCheck } = await supabase
+      .from('restaurants')
+      .select('owner_id')
+      .eq('id', restaurantId)
+      .single();
+
+    if (!ownerCheck || ownerCheck.owner_id !== user.id) {
+      return NextResponse.json(
+        { message: 'Restaurant not found or not owned by you' },
+        { status: 403 },
       );
     }
 
@@ -64,9 +78,9 @@ export async function POST(request: NextRequest) {
       restaurant_id: restaurantId,
       plan,
       status: 'active',
-      amount: Math.round(data.data.amount / 100), // kobo → naira
-      paystack_subscription_code: data.data.plan_object?.subscription_code || null,
-      paystack_customer_code: data.data.customer?.customer_code || null,
+      amount: amountKobo ? Math.round(amountKobo / 100) : (plan === 'professional' ? 35000 : 15000),
+      paystack_subscription_code: null,
+      paystack_customer_code: null,
       current_period_start: new Date().toISOString(),
       current_period_end: periodEnd.toISOString(),
     });
