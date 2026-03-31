@@ -94,6 +94,53 @@ export async function POST(request: NextRequest) {
         .eq('gateway_reference', reference);
     }
 
+    // ── Subscription events (WhatsApp bot plans) ──
+    const metadata = data.metadata as Record<string, string> | undefined;
+    const isWhatsAppSub = metadata?.type === 'whatsapp_subscription';
+
+    if (event === 'subscription.create' && isWhatsAppSub && metadata?.restaurant_id) {
+      const subCode = (data as Record<string, unknown>).subscription_code as string | undefined;
+      const custCode = ((data as Record<string, unknown>).customer as Record<string, string> | undefined)?.customer_code;
+
+      if (subCode) {
+        await supabase
+          .from('subscriptions')
+          .update({
+            paystack_subscription_code: subCode,
+            paystack_customer_code: custCode || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('restaurant_id', metadata.restaurant_id)
+          .eq('status', 'active');
+      }
+    }
+
+    if (event === 'invoice.payment_failed' && isWhatsAppSub && metadata?.restaurant_id) {
+      await supabase
+        .from('subscriptions')
+        .update({ status: 'past_due', updated_at: new Date().toISOString() })
+        .eq('restaurant_id', metadata.restaurant_id)
+        .eq('status', 'active');
+    }
+
+    if (event === 'subscription.not_renew' && isWhatsAppSub && metadata?.restaurant_id) {
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('restaurant_id', metadata.restaurant_id)
+        .eq('status', 'active');
+
+      // Suspend restaurant
+      await supabase
+        .from('restaurants')
+        .update({ status: 'suspended' })
+        .eq('id', metadata.restaurant_id);
+    }
+
     return NextResponse.json({ received: true });
   } catch {
     return NextResponse.json({ received: true }, { status: 200 });

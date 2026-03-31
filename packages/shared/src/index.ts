@@ -136,3 +136,17 @@ export const COLORS = {
   info: '#3B82F6',
   whatsapp: '#25D366',
 } as const;
+
+// ── Bot Code Generator ──
+export function generateBotCode(name: string): string {
+  const stopWords = new Set(['the', 'and', 'restaurant', 'kitchen', 'bar', 'lounge', 'cafe', 'eatery', 'by']);
+  return name
+    .toUpperCase()
+    .replace(/&/g, '')
+    .replace(/[^A-Z0-9\s-]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 0 && !stopWords.has(w.toLowerCase()))
+    .join('-')
+    .replace(/-+/g, '-')
+    .slice(0, 30);
+}

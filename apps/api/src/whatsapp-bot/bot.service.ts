@@ -177,6 +177,68 @@ export class BotService {
         restaurantId = restaurant?.id || null;
       }
 
+      // Keyword routing: check if message contains a restaurant bot_code
+      // Handles: "BUKKA-HUT", "book BUKKA-HUT", "hi I want to reserve at BUKKA-HUT", etc.
+      if (!restaurantId) {
+        const upperText = text.toUpperCase().trim();
+
+        // Common filler words people type before/after a bot code
+        const FILLER_WORDS = new Set([
+          'HI', 'HELLO', 'HEY', 'YO', 'SUP', 'HIYA', 'HOWDY',
+          'GOOD', 'MORNING', 'AFTERNOON', 'EVENING', 'NIGHT',
+          'BOOK', 'BOOKING', 'RESERVE', 'RESERVATION', 'TABLE', 'ORDER',
+          'I', 'WANT', 'NEED', 'WOULD', 'LIKE', 'TO', 'A', 'AT', 'THE', 'FOR',
+          'PLEASE', 'PLS', 'PLZ', 'THANKS', 'THANK', 'YOU',
+          'DUDE', 'BRO', 'SIS', 'ABEG', 'BIKO', 'JO',
+          'CAN', 'ME', 'MY', 'GET', 'MAKE', 'HELP',
+        ]);
+
+        // 1. Exact match — whole message is the bot_code
+        if (/^[A-Z0-9-]{2,30}$/.test(upperText)) {
+          const { data: codeMatch } = await supabase
+            .from('restaurants')
+            .select('id')
+            .eq('bot_code', upperText)
+            .in('status', ['active', 'approved'])
+            .maybeSingle();
+          if (codeMatch) restaurantId = codeMatch.id;
+        }
+
+        // 2. Hyphenated token match — pick out hyphenated words (most bot codes have hyphens)
+        if (!restaurantId) {
+          const tokens = upperText.split(/\s+/);
+          const hyphenated = tokens.filter(t => t.includes('-') && /^[A-Z0-9-]{2,30}$/.test(t));
+          for (const candidate of hyphenated) {
+            const { data: codeMatch } = await supabase
+              .from('restaurants')
+              .select('id')
+              .eq('bot_code', candidate)
+              .in('status', ['active', 'approved'])
+              .maybeSingle();
+            if (codeMatch) { restaurantId = codeMatch.id; break; }
+          }
+        }
+
+        // 3. Strip filler words — join remaining tokens and check as bot_code
+        //    e.g. "book BUKKA HUT please" → "BUKKA-HUT"
+        if (!restaurantId) {
+          const tokens = upperText.split(/\s+/);
+          const meaningful = tokens.filter(t => !FILLER_WORDS.has(t) && t.length > 0);
+          if (meaningful.length > 0 && meaningful.length <= 5) {
+            const candidate = meaningful.join('-').replace(/-+/g, '-').slice(0, 30);
+            if (/^[A-Z0-9-]{2,30}$/.test(candidate)) {
+              const { data: codeMatch } = await supabase
+                .from('restaurants')
+                .select('id')
+                .eq('bot_code', candidate)
+                .in('status', ['active', 'approved'])
+                .maybeSingle();
+              if (codeMatch) restaurantId = codeMatch.id;
+            }
+          }
+        }
+      }
+
       // Link to existing user by phone
       const phone = from.startsWith('+') ? from : `+${from}`;
       const { data: profile } = await supabase
