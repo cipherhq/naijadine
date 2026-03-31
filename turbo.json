@@ -4,7 +4,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "PAYSTACK_SECRET_KEY",
+        "PAYSTACK_STARTER_PLAN_CODE",
+        "PAYSTACK_PROFESSIONAL_PLAN_CODE"
+      ]
     },
     "dev": {
       "cache": false,
