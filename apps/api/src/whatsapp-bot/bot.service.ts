@@ -186,7 +186,7 @@ export class BotService {
         .single();
 
       // Create new session
-      const { data: newSession } = await supabase
+      const { data: newSession, error: sessionError } = await supabase
         .from('bot_sessions')
         .insert({
           whatsapp_number: from,
@@ -199,7 +199,8 @@ export class BotService {
         .select()
         .single();
 
-      if (!newSession) {
+      if (sessionError || !newSession) {
+        this.logger.error('Failed to create bot session', { error: sessionError, from, restaurantId });
         await this.sendText(from, 'Sorry, something went wrong. Please try again.');
         return;
       }
