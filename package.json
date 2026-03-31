@@ -1,0 +1,29 @@
+{
+  "name": "naijadine",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check",
+    "db:migrate": "supabase db push --linked",
+    "db:reset": "supabase db reset --linked",
+    "db:seed": "supabase db seed --linked",
+    "db:generate-types": "supabase gen types typescript --linked > packages/db/src/types/database.types.ts",
+    "studio": "supabase studio",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.0.0"
+}
