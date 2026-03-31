@@ -14,6 +14,7 @@ const standalone = PRICING.whatsapp_standalone;
 
 type WizardStep = 'auth' | 'details' | 'persona' | 'plan' | 'success';
 type AuthSubStep = 'phone' | 'otp';
+type AuthMode = 'phone' | 'email';
 
 function OnboardingWizard() {
   const router = useRouter();
@@ -28,10 +29,13 @@ function OnboardingWizard() {
   const [error, setError] = useState('');
 
   // Auth state
+  const [authMode, setAuthMode] = useState<AuthMode>('phone');
   const [authStep, setAuthStep] = useState<AuthSubStep>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [pinId, setPinId] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
   // Restaurant details
@@ -174,6 +178,39 @@ function OnboardingWizard() {
     }
   }
 
+  // ── Email Signup Handler ──
+
+  async function handleEmailSignup(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email || !password) return;
+    setAuthLoading(true);
+    setError('');
+
+    try {
+      const supabase = createClient();
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
+      }
+
+      if (signUpData.user) {
+        setUser(signUpData.user);
+        setStep('details');
+      } else {
+        setError('Check your email to confirm your account, then come back.');
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   // ── Registration Handler ──
 
   async function handleRegister(e: React.FormEvent) {
@@ -240,7 +277,7 @@ function OnboardingWizard() {
   const steps: { key: WizardStep; label: string }[] = [
     { key: 'auth', label: 'Sign Up' },
     { key: 'details', label: 'Restaurant' },
-    { key: 'persona', label: 'Bot Persona' },
+    { key: 'persona', label: 'Persona' },
     { key: 'plan', label: 'Pay' },
     { key: 'success', label: 'Live!' },
   ];
@@ -270,7 +307,7 @@ function OnboardingWizard() {
           <Link href="/" className="text-lg font-bold text-brand">
             NaijaDine
           </Link>
-          <span className="text-sm text-gray-500">WhatsApp Bot Setup</span>
+          <span className="text-sm text-gray-500">WhatsApp Automation Setup</span>
         </div>
       </header>
 
@@ -318,13 +355,73 @@ function OnboardingWizard() {
         {step === 'auth' && (
           <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900">Create Your Account</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {authStep === 'phone'
-                ? 'Enter your phone number to get started'
-                : `We sent a 6-digit code to ${phone}`}
+
+            {/* Auth mode toggle */}
+            <div className="mt-4 flex rounded-lg bg-gray-100 p-1">
+              <button
+                type="button"
+                onClick={() => { setAuthMode('phone'); setError(''); }}
+                className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
+                  authMode === 'phone' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                Phone
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('email'); setError(''); }}
+                className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
+                  authMode === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                Email
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm text-gray-500">
+              {authMode === 'email'
+                ? 'Sign up with your email and password'
+                : authStep === 'phone'
+                  ? 'Enter your phone number to get started'
+                  : `We sent a 6-digit code to ${phone}`}
             </p>
 
-            {authStep === 'phone' ? (
+            {authMode === 'email' ? (
+              <form onSubmit={handleEmailSignup} className="mt-6 space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min. 6 characters"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!email || !password || authLoading}
+                  className="w-full rounded-lg bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-500 disabled:opacity-50"
+                >
+                  {authLoading ? 'Creating account...' : 'Sign Up'}
+                </button>
+              </form>
+            ) : authStep === 'phone' ? (
               <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Phone Number</label>
@@ -455,15 +552,15 @@ function OnboardingWizard() {
         {/* ── Step 3: Bot Persona ── */}
         {step === 'persona' && (
           <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
-            <h2 className="text-xl font-semibold text-gray-900">Bot Persona</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Automation Persona</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Customize how your bot greets guests (optional)
+              Customize how your WhatsApp assistant greets guests (optional)
             </p>
 
             <div className="mt-6 space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Bot Name <span className="text-gray-400">(optional)</span>
+                  Assistant Name <span className="text-gray-400">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -473,7 +570,7 @@ function OnboardingWizard() {
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  Give your bot a personality. Guests will chat with &quot;{botAlias || 'your bot'}&quot;.
+                  Give your assistant a personality. Guests will chat with &quot;{botAlias || 'your assistant'}&quot;.
                 </p>
               </div>
 
@@ -499,7 +596,7 @@ function OnboardingWizard() {
                       {(botAlias || name || 'ND').charAt(0)}
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-white">{botAlias || name || 'NaijaDine Bot'}</p>
+                      <p className="text-xs font-semibold text-white">{botAlias || name || 'NaijaDine'}</p>
                       <p className="text-[10px] text-green-200">online</p>
                     </div>
                   </div>
@@ -539,7 +636,7 @@ function OnboardingWizard() {
           <div className="space-y-6">
             <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
               <h2 className="text-xl font-semibold text-gray-900">Choose Your Plan</h2>
-              <p className="mt-1 text-sm text-gray-500">Select a plan to activate your WhatsApp bot</p>
+              <p className="mt-1 text-sm text-gray-500">Select a plan to activate your WhatsApp automation</p>
 
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 {/* Starter */}
@@ -560,7 +657,7 @@ function OnboardingWizard() {
                     <span className="text-sm text-gray-500">/mo</span>
                   </p>
                   <ul className="mt-4 space-y-2">
-                    {['Up to 100 bookings/month', 'WhatsApp booking bot', 'Reservation dashboard', 'NaijaDine branding'].map(f => (
+                    {['Up to 100 bookings/month', 'WhatsApp automation', 'Reservation dashboard', 'NaijaDine branding'].map(f => (
                       <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
                         <svg className="mt-0.5 h-3 w-3 flex-shrink-0 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -592,7 +689,7 @@ function OnboardingWizard() {
                     <span className="text-sm text-gray-500">/mo</span>
                   </p>
                   <ul className="mt-4 space-y-2">
-                    {['Unlimited bookings', 'White-label (your brand)', 'Custom bot persona', 'Priority support', 'Advanced analytics'].map(f => (
+                    {['Unlimited bookings', 'White-label (your brand)', 'Custom persona', 'Priority support', 'Advanced analytics'].map(f => (
                       <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
                         <svg className="mt-0.5 h-3 w-3 flex-shrink-0 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -641,7 +738,7 @@ function OnboardingWizard() {
                   </svg>
                 </div>
 
-                <h2 className="mt-4 text-xl font-semibold text-gray-900">Your Bot is Live!</h2>
+                <h2 className="mt-4 text-xl font-semibold text-gray-900">Your Automation is Live!</h2>
                 <p className="mt-2 text-sm text-gray-500">
                   Share this link with guests to start taking bookings
                 </p>

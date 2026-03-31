@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { PRICING, formatNaira } from '@naijadine/shared';
 
 export const metadata: Metadata = {
-  title: 'WhatsApp Booking Bot for Restaurants — NaijaDine',
+  title: 'WhatsApp Automation for Restaurants — NaijaDine',
   description:
     'Give your restaurant its own AI-powered WhatsApp booking assistant. Accept reservations 24/7, reduce no-shows with deposits, and delight guests — no app download required.',
 };
@@ -26,15 +26,15 @@ export default function WhatsAppPage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
             </span>
-            WhatsApp Booking Bot
+            WhatsApp Automation
           </span>
 
           <h1 className="mt-6 text-balance text-4xl font-bold leading-tight text-white sm:text-5xl">
             Your Restaurant&apos;s Own WhatsApp Booking Assistant
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-brand-200">
-            Let an AI-powered bot handle reservations 24/7 on WhatsApp — the app
-            your guests already use. Built for Nigerian restaurants.
+            Automate reservations 24/7 on WhatsApp — the app your guests
+            already use. Built for Nigerian restaurants.
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -77,7 +77,7 @@ export default function WhatsAppPage() {
                   ND
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">NaijaDine Bot</p>
+                  <p className="text-sm font-semibold text-white">NaijaDine</p>
                   <p className="text-xs text-green-200">online</p>
                 </div>
               </div>
@@ -112,12 +112,12 @@ export default function WhatsAppPage() {
               <StepCallout
                 number={1}
                 title="Guest says hi"
-                description="When a guest messages your WhatsApp number, the bot greets them with your restaurant's name and presents clear options."
+                description="When a guest messages your WhatsApp number, they're greeted with your restaurant's name and presented with clear options."
               />
               <StepCallout
                 number={2}
-                title="Bot collects details"
-                description="The AI asks for date, time, and party size in natural language — no forms, no links, just a quick chat."
+                title="Details collected automatically"
+                description="Date, time, and party size are collected in natural language — no forms, no links, just a quick chat."
               />
               <StepCallout
                 number={3}
@@ -145,7 +145,7 @@ export default function WhatsAppPage() {
               icon={
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               }
-              title="24/7 WhatsApp Bot"
+              title="24/7 WhatsApp Automation"
               description="Accept bookings any time, day or night, even when your staff are busy or the restaurant is closed."
             />
             <FeatureCard
@@ -170,7 +170,7 @@ export default function WhatsAppPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               }
               title="Deposit Collection"
-              description="Reduce no-shows by collecting deposits via Paystack — automatically prompted by the bot during booking."
+              description="Reduce no-shows by collecting deposits via Paystack — automatically prompted during booking."
             />
             <FeatureCard
               color="bg-red-100 text-red-700"
@@ -185,8 +185,8 @@ export default function WhatsAppPage() {
               icon={
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               }
-              title="Custom Bot Persona"
-              description="Give the bot your restaurant's name and personality. Guests interact with your brand, not ours."
+              title="Custom Persona"
+              description="Personalize with your restaurant's name and personality. Guests interact with your brand, not ours."
             />
           </div>
         </div>
@@ -223,10 +223,10 @@ export default function WhatsAppPage() {
               <h3 className="text-lg font-semibold text-green-800">With NaijaDine</h3>
               <ul className="mt-4 space-y-3">
                 {[
-                  '24/7 bot takes bookings even at 2 AM',
+                  '24/7 automated bookings even at 2 AM',
                   'Deposits collected automatically via Paystack',
                   'Clean dashboard with real-time availability',
-                  'Bot handles 90% of booking conversations',
+                  'Automation handles 90% of booking conversations',
                   'Full guest profiles and visit history',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2 text-sm text-green-700">
@@ -275,7 +275,7 @@ export default function WhatsAppPage() {
               period="/month"
               features={[
                 'Up to 100 bookings/month',
-                'WhatsApp booking bot',
+                'WhatsApp automation',
                 'Reservation dashboard',
                 'SMS & email notifications',
                 'NaijaDine branding',
@@ -291,9 +291,9 @@ export default function WhatsAppPage() {
               highlight
               features={[
                 'Unlimited bookings',
-                'WhatsApp booking bot',
+                'WhatsApp automation',
                 'White-label (your brand)',
-                'Custom bot persona',
+                'Custom persona',
                 'Priority support',
                 'Advanced analytics',
               ]}
@@ -335,12 +335,12 @@ export default function WhatsAppPage() {
               {
                 step: '2',
                 title: 'Connect WhatsApp',
-                description: 'We set up a dedicated WhatsApp number for your bookings.',
+                description: 'We connect WhatsApp automation to your bookings.',
               },
               {
                 step: '3',
                 title: 'Start Taking Bookings',
-                description: 'Share your number with guests and let the bot do the rest.',
+                description: 'Share your link with guests and the automation handles the rest.',
               },
             ].map((s) => (
               <div key={s.step}>
@@ -364,19 +364,19 @@ export default function WhatsAppPage() {
           <div className="mx-auto mt-10 max-w-2xl space-y-6">
             <FaqItem
               question="Do I need to be on the NaijaDine marketplace?"
-              answer="No. The WhatsApp bot is a standalone product — you don't need a marketplace listing to use it. Of course, you can combine both for maximum reach."
+              answer="No. WhatsApp Automation is a standalone product — you don't need a marketplace listing to use it. Of course, you can combine both for maximum reach."
             />
             <FaqItem
-              question="Can I customise the bot's messages?"
-              answer="Yes. On the Professional plan and above, you can set a custom bot name, greeting, and personality that matches your restaurant's brand."
+              question="Can I customise the messages?"
+              answer="Yes. On the Professional plan and above, you can set a custom name, greeting, and personality that matches your restaurant's brand."
             />
             <FaqItem
               question="How do deposit payments work?"
-              answer="When a guest books, the bot can prompt them to pay a deposit via a secure Paystack link. Funds go directly to your account minus a small processing fee."
+              answer="When a guest books, they're prompted to pay a deposit via a secure Paystack link. Funds go directly to your account minus a small processing fee."
             />
             <FaqItem
               question="What happens outside operating hours?"
-              answer="The bot works 24/7 — it will take bookings even at 2 AM. You can set operating hours in the dashboard so the bot only offers available time slots."
+              answer="The automation works 24/7 — it will take bookings even at 2 AM. You can set operating hours in the dashboard so only available time slots are offered."
             />
             <FaqItem
               question="Is there a long-term contract?"
@@ -388,7 +388,7 @@ export default function WhatsAppPage() {
             />
             <FaqItem
               question="What if a guest has a complex request?"
-              answer="The bot handles standard bookings and common questions. For anything it can't answer, it seamlessly hands off to your staff via a notification."
+              answer="The automation handles standard bookings and common questions. For anything it can't resolve, it seamlessly hands off to your staff via a notification."
             />
           </div>
         </div>
@@ -403,7 +403,7 @@ export default function WhatsAppPage() {
             </h2>
             <p className="mt-2 text-brand-200">
               Join 50+ restaurants already saving time and reducing no-shows
-              with NaijaDine&apos;s WhatsApp bot.
+              with NaijaDine&apos;s WhatsApp Automation.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link

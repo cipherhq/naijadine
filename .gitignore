@@ -47,3 +47,5 @@ yarn-error.log*
 apps/mobile/.dart_tool/
 apps/mobile/build/
 apps/mobile/.packages
+.vercel
+.env*.local

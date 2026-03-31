@@ -49,6 +49,11 @@ export function Footer() {
                   Contact
                 </Link>
               </li>
+              <li>
+                <Link href="/whatsapp" className="text-sm text-gray-500 hover:text-brand">
+                  WhatsApp Bot
+                </Link>
+              </li>
             </ul>
           </div>
           <div>
