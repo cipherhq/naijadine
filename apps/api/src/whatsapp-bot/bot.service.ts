@@ -4,8 +4,8 @@ import { SupabaseService } from '../config/supabase.service';
 import { GupshupService } from '../notifications/channels/gupshup.service';
 import { ResendEmailService } from '../notifications/channels/resend.service';
 import { StandaloneService } from './standalone.service';
-import { BotIntelligenceService } from './bot-intelligence.service';
-import { CITIES, CUISINE_TYPES, BOOKING_DEFAULTS, generateTimeSlots } from '@naijadine/shared';
+import { BotIntelligenceService, BusinessCategory, AbuseResult } from './bot-intelligence.service';
+import { CITIES, CUISINE_TYPES, BOOKING_DEFAULTS, ORDER_DEFAULTS, generateTimeSlots, formatNaira } from '@naijadine/shared';
 import { randomUUID } from 'crypto';
 
 type BotStep =
@@ -14,6 +14,7 @@ type BotStep =
   | 'city_selection'
   | 'neighborhood_selection'
   | 'restaurant_selection'
+  | 'service_selection'
   | 'date_selection'
   | 'time_selection'
   | 'party_size'
@@ -28,7 +29,23 @@ type BotStep =
   | 'my_bookings'
   | 'modify_booking'
   | 'review_text'
-  | 'complete';
+  | 'complete'
+  // Food ordering steps
+  | 'order_city_selection'
+  | 'order_restaurant_selection'
+  | 'order_menu_categories'
+  | 'order_menu_items'
+  | 'order_item_quantity'
+  | 'order_add_more'
+  | 'order_cart_review'
+  | 'order_type_selection'
+  | 'order_delivery_address'
+  | 'order_special_instructions'
+  | 'order_confirm'
+  | 'order_collect_name'
+  | 'order_collect_email'
+  | 'order_payment'
+  | 'order_complete';
 
 interface SessionData {
   city?: string;
@@ -36,6 +53,7 @@ interface SessionData {
   restaurant_id?: string;
   restaurant_name?: string;
   restaurant_slug?: string;
+  business_category?: BusinessCategory;
   date?: string;
   time?: string;
   party_size?: number;
@@ -46,6 +64,8 @@ interface SessionData {
   email?: string;
   deposit_amount?: number;
   payment_reference?: string;
+  selected_service_name?: string;
+  selected_service_price?: number;
   last_party_size?: number;
   is_quick_rebook?: boolean;
   special_requests?: string;
@@ -56,6 +76,25 @@ interface SessionData {
   review_reservation_id?: string;
   review_restaurant_name?: string;
   review_rating?: number;
+  // Food ordering fields
+  order_flow?: boolean;
+  order_restaurant_id?: string;
+  order_restaurant_name?: string;
+  order_delivery_fee?: number | null;
+  order_selected_category_id?: string;
+  order_selected_category_name?: string;
+  order_selected_item_id?: string;
+  order_selected_item_name?: string;
+  order_selected_item_price?: number;
+  cart?: Array<{ item_id: string; name: string; price: number; quantity: number }>;
+  order_type?: 'pickup' | 'delivery';
+  delivery_address?: string;
+  order_special_instructions?: string;
+  order_id?: string;
+  order_reference_code?: string;
+  order_subtotal?: number;
+  order_total?: number;
+  order_payment_reference?: string;
 }
 
 interface BotSession {
@@ -111,11 +150,12 @@ export class BotService {
 
     // Pre-check 2: Profanity — record strike, optionally block
     if (this.intelligence.containsProfanity(text)) {
-      const abuse = this.intelligence.recordProfanity(from);
-      if (abuse.timeout) {
-        // Deactivate session before blocking
-        const existingSession = await this.getActiveSession(from);
-        if (existingSession) await this.deactivateSession(existingSession.id);
+      // Resolve category from existing session for category-aware response
+      const existingSession = await this.getActiveSession(from);
+      const category = existingSession ? this.getSessionCategory(existingSession) : 'restaurant';
+      const abuse = this.intelligence.recordProfanity(from, category);
+      if (abuse.timeout && existingSession) {
+        await this.deactivateSession(existingSession.id);
       }
       await this.sendText(from, abuse.message);
       return;
@@ -148,13 +188,72 @@ export class BotService {
       return;
     }
 
+    // Check for order entry keywords (before restart check)
+    const isOrderQuery = /^(order|order food|place an order|i want to order|buy food|get food)$/i.test(text);
+    const isAlreadyOrdering = session?.current_step?.startsWith('order_') || false;
+    if (isOrderQuery && !isAlreadyOrdering) {
+      // Deactivate existing session if any
+      if (session) {
+        await supabase.from('bot_sessions').update({ is_active: false }).eq('id', session.id);
+      }
+      const phone = from.startsWith('+') ? from : `+${from}`;
+      const { data: profile } = await supabase.from('profiles').select('id').eq('phone', phone).single();
+
+      const orderSessionData: SessionData = { order_flow: true, cart: [] };
+      const standaloneRestaurantId = session?.restaurant_id || null;
+
+      // Standalone bot — skip city/restaurant selection
+      if (standaloneRestaurantId) {
+        const { data: rest } = await supabase
+          .from('restaurants')
+          .select('name, delivery_fee')
+          .eq('id', standaloneRestaurantId)
+          .single();
+        orderSessionData.order_restaurant_id = standaloneRestaurantId;
+        orderSessionData.order_restaurant_name = rest?.name || 'Restaurant';
+        orderSessionData.order_delivery_fee = rest?.delivery_fee ?? null;
+
+        const { data: newSession } = await supabase.from('bot_sessions').insert({
+          whatsapp_number: from, user_id: profile?.id || null,
+          restaurant_id: standaloneRestaurantId,
+          current_step: 'order_menu_categories', session_data: orderSessionData, is_active: true,
+        }).select().single();
+        if (!newSession) { await this.sendText(from, 'Something went wrong. Try again.'); return; }
+        await this.sendText(from, `🍽️ Let's get your order started at *${orderSessionData.order_restaurant_name}*!`);
+        await this.handleOrderMenuCategories(newSession as BotSession, from, '');
+        return;
+      }
+
+      // Marketplace — start at city selection for order
+      const { data: newSession } = await supabase.from('bot_sessions').insert({
+        whatsapp_number: from, user_id: profile?.id || null,
+        restaurant_id: null,
+        current_step: 'order_city_selection', session_data: orderSessionData, is_active: true,
+      }).select().single();
+      if (!newSession) { await this.sendText(from, 'Something went wrong. Try again.'); return; }
+      await this.sendText(from, '🍽️ Let\'s order some food! First, pick your city:');
+      await this.handleOrderCitySelection(newSession as BotSession, from, '');
+      return;
+    }
+
+    // Check for bot_code mid-session — if user types a bot code while in another flow, switch
+    if (session) {
+      const botCodeRestaurantId = await this.lookupBotCode(text);
+      if (botCodeRestaurantId && botCodeRestaurantId !== session.restaurant_id) {
+        await supabase.from('bot_sessions').update({ is_active: false }).eq('id', session.id);
+        session = null; // Fall through to new session creation which will pick up the code
+      }
+    }
+
     // Check for restart keywords (fixed: use word boundary to avoid matching "history", "help" etc.)
     // Skip restart detection on free-text steps so "Hi" can be typed as a name
     const currentStep = session?.current_step || '';
-    const isFreeTextStep = ['collect_name', 'collect_other_name', 'collect_email', 'special_requests', 'review_text'].includes(currentStep);
+    const isFreeTextStep = ['collect_name', 'collect_other_name', 'collect_email', 'special_requests', 'review_text',
+      'order_delivery_address', 'order_collect_name', 'order_collect_email', 'order_special_instructions'].includes(currentStep);
+    const sessionCategory = session ? this.getSessionCategory(session) : 'restaurant';
     const isRestart = !isFreeTextStep && (
       /^(start|restart)$/i.test(text) ||
-      (this.intelligence.detectIntent(text, 'greeting')?.intent === 'greeting')
+      (this.intelligence.detectIntent(text, 'greeting', sessionCategory)?.intent === 'greeting')
     );
 
     if (!session || isRestart) {
@@ -178,65 +277,8 @@ export class BotService {
       }
 
       // Keyword routing: check if message contains a restaurant bot_code
-      // Handles: "BUKKA-HUT", "book BUKKA-HUT", "hi I want to reserve at BUKKA-HUT", etc.
       if (!restaurantId) {
-        const upperText = text.toUpperCase().trim();
-
-        // Common filler words people type before/after a bot code
-        const FILLER_WORDS = new Set([
-          'HI', 'HELLO', 'HEY', 'YO', 'SUP', 'HIYA', 'HOWDY',
-          'GOOD', 'MORNING', 'AFTERNOON', 'EVENING', 'NIGHT',
-          'BOOK', 'BOOKING', 'RESERVE', 'RESERVATION', 'TABLE', 'ORDER',
-          'I', 'WANT', 'NEED', 'WOULD', 'LIKE', 'TO', 'A', 'AT', 'THE', 'FOR',
-          'PLEASE', 'PLS', 'PLZ', 'THANKS', 'THANK', 'YOU',
-          'DUDE', 'BRO', 'SIS', 'ABEG', 'BIKO', 'JO',
-          'CAN', 'ME', 'MY', 'GET', 'MAKE', 'HELP',
-        ]);
-
-        // 1. Exact match — whole message is the bot_code
-        if (/^[A-Z0-9-]{2,30}$/.test(upperText)) {
-          const { data: codeMatch } = await supabase
-            .from('restaurants')
-            .select('id')
-            .eq('bot_code', upperText)
-            .in('status', ['active', 'approved'])
-            .maybeSingle();
-          if (codeMatch) restaurantId = codeMatch.id;
-        }
-
-        // 2. Hyphenated token match — pick out hyphenated words (most bot codes have hyphens)
-        if (!restaurantId) {
-          const tokens = upperText.split(/\s+/);
-          const hyphenated = tokens.filter(t => t.includes('-') && /^[A-Z0-9-]{2,30}$/.test(t));
-          for (const candidate of hyphenated) {
-            const { data: codeMatch } = await supabase
-              .from('restaurants')
-              .select('id')
-              .eq('bot_code', candidate)
-              .in('status', ['active', 'approved'])
-              .maybeSingle();
-            if (codeMatch) { restaurantId = codeMatch.id; break; }
-          }
-        }
-
-        // 3. Strip filler words — join remaining tokens and check as bot_code
-        //    e.g. "book BUKKA HUT please" → "BUKKA-HUT"
-        if (!restaurantId) {
-          const tokens = upperText.split(/\s+/);
-          const meaningful = tokens.filter(t => !FILLER_WORDS.has(t) && t.length > 0);
-          if (meaningful.length > 0 && meaningful.length <= 5) {
-            const candidate = meaningful.join('-').replace(/-+/g, '-').slice(0, 30);
-            if (/^[A-Z0-9-]{2,30}$/.test(candidate)) {
-              const { data: codeMatch } = await supabase
-                .from('restaurants')
-                .select('id')
-                .eq('bot_code', candidate)
-                .in('status', ['active', 'approved'])
-                .maybeSingle();
-              if (codeMatch) restaurantId = codeMatch.id;
-            }
-          }
-        }
+        restaurantId = await this.lookupBotCode(text);
       }
 
       // Link to existing user by phone
@@ -254,7 +296,7 @@ export class BotService {
           whatsapp_number: from,
           user_id: profile?.id || null,
           restaurant_id: restaurantId,
-          current_step: restaurantId ? 'date_selection' : 'greeting',
+          current_step: restaurantId ? 'pending_category_route' : 'greeting',
           session_data: restaurantId ? { restaurant_id: restaurantId } : {},
           is_active: true,
         })
@@ -270,21 +312,44 @@ export class BotService {
       session = newSession as BotSession;
 
       if (restaurantId) {
-        // Standalone bot — load restaurant name and skip to date
+        // Standalone bot — load restaurant name, category, and route by business type
         const { data: restaurant } = await supabase
           .from('restaurants')
-          .select('name, slug')
+          .select('name, slug, business_category, delivery_fee')
           .eq('id', restaurantId)
           .single();
+
+        const category = (restaurant?.business_category as BusinessCategory) || 'restaurant';
 
         if (restaurant) {
           session.session_data.restaurant_name = restaurant.name;
           session.session_data.restaurant_slug = restaurant.slug;
-          await supabase
-            .from('bot_sessions')
-            .update({ session_data: session.session_data })
-            .eq('id', session.id);
+          session.session_data.business_category = category;
         }
+
+        // Determine entry step based on category
+        const PURCHASE_CATEGORIES = ['church', 'cinema', 'events', 'shop'];
+        const SERVICE_CATEGORIES = ['spa', 'gym'];
+
+        let entryStep: string;
+        if (PURCHASE_CATEGORIES.includes(category)) {
+          entryStep = 'order_menu_categories';
+          // Set up order flow session data for purchase categories
+          session.session_data.order_flow = true;
+          session.session_data.cart = [];
+          session.session_data.order_restaurant_id = restaurantId;
+          session.session_data.order_restaurant_name = restaurant?.name || 'Business';
+          session.session_data.order_delivery_fee = restaurant?.delivery_fee ?? null;
+        } else if (SERVICE_CATEGORIES.includes(category)) {
+          entryStep = 'service_selection';
+        } else {
+          entryStep = 'date_selection'; // restaurant, other
+        }
+
+        await supabase
+          .from('bot_sessions')
+          .update({ current_step: entryStep, session_data: session.session_data })
+          .eq('id', session.id);
 
         // Use custom greeting template (white-label support) with optional alias persona
         const templates = await this.standaloneService.getBotTemplates(restaurantId);
@@ -293,7 +358,7 @@ export class BotService {
 
         let greeting: string;
         if (botAlias) {
-          greeting = this.intelligence.getPersonaGreeting(botAlias, restaurant?.name || 'our restaurant');
+          greeting = this.intelligence.getPersonaGreeting(botAlias, restaurant?.name || 'our restaurant', category);
         } else {
           greeting = this.standaloneService.fillTemplate(templates.greeting, {
             restaurant_name: restaurant?.name || 'our restaurant',
@@ -313,7 +378,15 @@ export class BotService {
         }
 
         await this.sendText(from, greeting);
-        await this.handleDateSelection(session, from, '');
+
+        // Route to the correct handler based on category
+        if (entryStep === 'order_menu_categories') {
+          await this.handleOrderMenuCategories(session, from, '');
+        } else if (entryStep === 'service_selection') {
+          await this.handleServiceSelection(session, from, '');
+        } else {
+          await this.handleDateSelection(session, from, '');
+        }
         return;
       }
 
@@ -401,7 +474,8 @@ export class BotService {
 
     // Intent detection — catch free-text commands before the step switch
     const step = session.current_step as BotStep;
-    const detectedIntent = this.intelligence.detectIntent(text, step);
+    const category = this.getSessionCategory(session);
+    const detectedIntent = this.intelligence.detectIntent(text, step, category);
 
     if (detectedIntent) {
       this.intelligence.resetAbuse(from);
@@ -440,7 +514,7 @@ export class BotService {
         if (isStandalone && session.restaurant_id) {
           alias = await this.standaloneService.getBotAlias(session.restaurant_id);
         }
-        await this.sendText(from, this.intelligence.getHelpText(isStandalone, restaurantName, alias || undefined));
+        await this.sendText(from, this.intelligence.getHelpText(isStandalone, restaurantName, alias || undefined, category));
         // Also remind them where they are
         const helpNudge = this.intelligence.getContextualHelp(step);
         await this.sendText(from, `📍 You're currently at: *${step.replace(/_/g, ' ')}*\n${helpNudge}`);
@@ -449,6 +523,45 @@ export class BotService {
 
       if (detectedIntent.action === 'acknowledge') {
         await this.sendText(from, detectedIntent.response!);
+        return;
+      }
+
+      if (detectedIntent.action === 'start_order') {
+        // Route to food ordering flow
+        await supabase.from('bot_sessions').update({ is_active: false }).eq('id', session.id);
+        const phone = from.startsWith('+') ? from : `+${from}`;
+        const { data: profile } = await supabase.from('profiles').select('id').eq('phone', phone).single();
+        const orderSessionData: SessionData = { order_flow: true, cart: [] };
+
+        if (session.restaurant_id) {
+          const { data: rest } = await supabase
+            .from('restaurants')
+            .select('name, delivery_fee')
+            .eq('id', session.restaurant_id)
+            .single();
+          orderSessionData.order_restaurant_id = session.restaurant_id;
+          orderSessionData.order_restaurant_name = rest?.name || 'Restaurant';
+          orderSessionData.order_delivery_fee = rest?.delivery_fee ?? null;
+
+          const { data: newSession } = await supabase.from('bot_sessions').insert({
+            whatsapp_number: from, user_id: profile?.id || null,
+            restaurant_id: session.restaurant_id,
+            current_step: 'order_menu_categories', session_data: orderSessionData, is_active: true,
+          }).select().single();
+          if (!newSession) { await this.sendText(from, 'Something went wrong. Try again.'); return; }
+          await this.sendText(from, `🍽️ Let's get your order started at *${orderSessionData.order_restaurant_name}*!`);
+          await this.handleOrderMenuCategories(newSession as BotSession, from, '');
+          return;
+        }
+
+        const { data: newSession } = await supabase.from('bot_sessions').insert({
+          whatsapp_number: from, user_id: profile?.id || null,
+          restaurant_id: null,
+          current_step: 'order_city_selection', session_data: orderSessionData, is_active: true,
+        }).select().single();
+        if (!newSession) { await this.sendText(from, 'Something went wrong. Try again.'); return; }
+        await this.sendText(from, '🍽️ Let\'s order some food! First, pick your city:');
+        await this.handleOrderCitySelection(newSession as BotSession, from, '');
         return;
       }
 
@@ -477,6 +590,9 @@ export class BotService {
         break;
       case 'restaurant_selection':
         await this.handleRestaurantSelection(session, from, text);
+        break;
+      case 'service_selection':
+        await this.handleServiceSelection(session, from, text);
         break;
       case 'date_selection':
         await this.handleDateSelection(session, from, text);
@@ -519,6 +635,49 @@ export class BotService {
         break;
       case 'review_text':
         await this.handleReviewText(session, from, text);
+        break;
+      // Food ordering steps
+      case 'order_city_selection':
+        await this.handleOrderCitySelection(session, from, text);
+        break;
+      case 'order_restaurant_selection':
+        await this.handleOrderRestaurantSelection(session, from, text);
+        break;
+      case 'order_menu_categories':
+        await this.handleOrderMenuCategories(session, from, text);
+        break;
+      case 'order_menu_items':
+        await this.handleOrderMenuItems(session, from, text);
+        break;
+      case 'order_item_quantity':
+        await this.handleOrderItemQuantity(session, from, text);
+        break;
+      case 'order_add_more':
+        await this.handleOrderAddMore(session, from, text);
+        break;
+      case 'order_cart_review':
+        await this.handleOrderCartReview(session, from, text);
+        break;
+      case 'order_type_selection':
+        await this.handleOrderTypeSelection(session, from, text);
+        break;
+      case 'order_delivery_address':
+        await this.handleOrderDeliveryAddress(session, from, text);
+        break;
+      case 'order_special_instructions':
+        await this.handleOrderSpecialInstructions(session, from, text);
+        break;
+      case 'order_confirm':
+        await this.handleOrderConfirm(session, from, text);
+        break;
+      case 'order_collect_name':
+        await this.handleOrderCollectName(session, from, text);
+        break;
+      case 'order_collect_email':
+        await this.handleOrderCollectEmail(session, from, text);
+        break;
+      case 'order_payment':
+        await this.handleOrderPaymentCheck(session, from, text);
         break;
       default:
         await this.sendText(from, 'Send "Hi" to start a new booking.');
@@ -593,7 +752,7 @@ export class BotService {
     );
 
     if (!matchedCity) {
-      const cityAbuse = this.intelligence.recordGibberish(from);
+      const cityAbuse = await this.handleValidationFailure(from, 'city_selection', session);
       if (cityAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, cityAbuse.message); return; }
       await this.sendText(from, cityAbuse.warn ? cityAbuse.message : "I didn't catch that. Please tap one of the city options.");
       return;
@@ -650,7 +809,7 @@ export class BotService {
     // Validate neighborhood
     const matched = neighborhoods.find((n) => n.toLowerCase() === input.toLowerCase());
     if (!matched) {
-      const areaAbuse = this.intelligence.recordGibberish(from);
+      const areaAbuse = await this.handleValidationFailure(from, 'neighborhood_selection', session);
       if (areaAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, areaAbuse.message); return; }
       await this.sendText(from, areaAbuse.warn ? areaAbuse.message : "I didn't catch that. Please tap one of the area options.");
       return;
@@ -716,7 +875,7 @@ export class BotService {
     // Look up by slug
     const { data: restaurant } = await supabase
       .from('restaurants')
-      .select('id, name, slug, cover_photo_url')
+      .select('id, name, slug, cover_photo_url, business_category')
       .eq('slug', input.toLowerCase().replace(/\s+/g, '-'))
       .single();
 
@@ -724,7 +883,7 @@ export class BotService {
       // Try matching by name
       const { data: byName } = await supabase
         .from('restaurants')
-        .select('id, name, slug, cover_photo_url')
+        .select('id, name, slug, cover_photo_url, business_category')
         .ilike('name', `%${input}%`)
         .eq('city', session.session_data.city!)
         .in('status', ['active', 'approved'])
@@ -732,7 +891,7 @@ export class BotService {
         .single();
 
       if (!byName) {
-        const restAbuse = this.intelligence.recordGibberish(from);
+        const restAbuse = await this.handleValidationFailure(from, 'restaurant_selection', session);
         if (restAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, restAbuse.message); return; }
         await this.sendText(from, restAbuse.warn ? restAbuse.message : "I didn't catch that. Please tap one of the restaurant options.");
         return;
@@ -741,6 +900,7 @@ export class BotService {
       session.session_data.restaurant_id = byName.id;
       session.session_data.restaurant_name = byName.name;
       session.session_data.restaurant_slug = byName.slug;
+      session.session_data.business_category = (byName.business_category as BusinessCategory) || 'restaurant';
 
       // Feature 1: Send restaurant photo
       if (byName.cover_photo_url) {
@@ -754,6 +914,7 @@ export class BotService {
       session.session_data.restaurant_id = restaurant.id;
       session.session_data.restaurant_name = restaurant.name;
       session.session_data.restaurant_slug = restaurant.slug;
+      session.session_data.business_category = (restaurant.business_category as BusinessCategory) || 'restaurant';
 
       // Feature 1: Send restaurant photo
       if (restaurant.cover_photo_url) {
@@ -769,6 +930,117 @@ export class BotService {
     await this.updateSession(session.id, 'date_selection', session.session_data);
     await this.sendText(from, `Great choice! 🎉 ${session.session_data.restaurant_name}`);
     await this.handleDateSelection(session, from, '');
+  }
+
+  // ── Service Selection Handler (spa/gym) ─────────────────
+
+  private async handleServiceSelection(session: BotSession, from: string, input: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    const restaurantId = session.restaurant_id;
+    const category = this.getSessionCategory(session);
+
+    if (!restaurantId) {
+      await this.sendText(from, 'Something went wrong. Send *Hi* to start again.');
+      await this.deactivateSession(session.id);
+      return;
+    }
+
+    // Phase 1: Show service categories or items within a category
+    if (!input || input.startsWith('cat_')) {
+      if (!input) {
+        // Show service categories
+        const { data: categories } = await supabase
+          .from('menu_categories')
+          .select('id, name, description')
+          .eq('restaurant_id', restaurantId)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .limit(10);
+
+        if (!categories?.length) {
+          await this.sendText(from, 'No services available right now. Send *Hi* to try again.');
+          await this.deactivateSession(session.id);
+          return;
+        }
+
+        const browseLabel = category === 'spa' ? 'Browse Treatments' : 'Browse Classes';
+        await this.gupshupService.sendList({
+          to: from,
+          title: browseLabel,
+          body: `Choose a ${category === 'spa' ? 'treatment type' : 'class type'}:`,
+          buttonLabel: browseLabel,
+          items: categories.map(c => ({
+            title: c.name,
+            description: c.description || '',
+            postbackText: `cat_${c.id}`,
+          })),
+        });
+        return;
+      }
+
+      // Category selected — show items in that category
+      const categoryId = input.replace('cat_', '');
+      const { data: items } = await supabase
+        .from('menu_items')
+        .select('id, name, description, price')
+        .eq('category_id', categoryId)
+        .eq('is_available', true)
+        .order('sort_order', { ascending: true })
+        .limit(10);
+
+      if (!items?.length) {
+        await this.sendText(from, 'No options available in this category.');
+        await this.handleServiceSelection(session, from, '');
+        return;
+      }
+
+      session.session_data.order_selected_category_id = categoryId;
+      await this.updateSession(session.id, 'service_selection', session.session_data);
+
+      const selectLabel = category === 'spa' ? 'Select Treatment' : 'Select Class';
+      const noun = category === 'spa' ? 'treatment' : 'class';
+      await this.gupshupService.sendList({
+        to: from,
+        title: selectLabel,
+        body: `Pick a ${noun}:`,
+        buttonLabel: 'Select',
+        items: items.map(i => ({
+          title: i.name,
+          description: `₦${i.price.toLocaleString()}${i.description ? ' • ' + i.description : ''}`,
+          postbackText: `svc_${i.id}`,
+        })),
+      });
+      return;
+    }
+
+    // Phase 2: Service selected — store it and move to date selection
+    if (input.startsWith('svc_')) {
+      const itemId = input.replace('svc_', '');
+      const { data: item } = await supabase
+        .from('menu_items')
+        .select('id, name, price')
+        .eq('id', itemId)
+        .single();
+
+      if (!item) {
+        await this.handleServiceSelection(session, from, '');
+        return;
+      }
+
+      session.session_data.selected_service_name = item.name;
+      session.session_data.selected_service_price = item.price;
+      session.session_data.deposit_amount = item.price;
+
+      await this.updateSession(session.id, 'date_selection', session.session_data);
+      await this.sendText(from, `Great choice! *${item.name}* — ₦${item.price.toLocaleString()}\n\nNow let's pick a date:`);
+      await this.handleDateSelection(session, from, '');
+      return;
+    }
+
+    // Invalid input
+    const abuse = await this.handleValidationFailure(from, 'service_selection', session);
+    if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+    await this.sendText(from, abuse.warn ? abuse.message : 'Please select from the list.');
   }
 
   private async handleDateSelection(session: BotSession, from: string, input: string): Promise<void> {
@@ -799,7 +1071,7 @@ export class BotService {
       // Try parsing natural input
       const parsed = new Date(input);
       if (isNaN(parsed.getTime())) {
-        const dateAbuse = this.intelligence.recordGibberish(from);
+        const dateAbuse = await this.handleValidationFailure(from, 'date_selection', session);
         if (dateAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, dateAbuse.message); return; }
         await this.sendText(from, dateAbuse.warn ? dateAbuse.message : "I didn't catch that. Please tap one of the date options.");
         return;
@@ -851,7 +1123,7 @@ export class BotService {
     // Validate time format
     const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(input);
     if (!timeMatch) {
-      const timeAbuse = this.intelligence.recordGibberish(from);
+      const timeAbuse = await this.handleValidationFailure(from, 'time_selection', session);
       if (timeAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, timeAbuse.message); return; }
       await this.sendText(from, timeAbuse.warn ? timeAbuse.message : "I didn't catch that. Please tap one of the time options.");
       return;
@@ -870,6 +1142,15 @@ export class BotService {
   }
 
   private async handlePartySize(session: BotSession, from: string, input: string): Promise<void> {
+    // Auto-skip party size for spa/gym — always 1 person
+    const category = this.getSessionCategory(session);
+    if (category === 'spa' || category === 'gym') {
+      session.session_data.party_size = 1;
+      await this.updateSession(session.id, 'confirmation', session.session_data);
+      await this.handleConfirmation(session, from, '');
+      return;
+    }
+
     if (!input) {
       const lastSize = session.session_data.last_party_size;
       const isQuick = session.session_data.is_quick_rebook;
@@ -917,6 +1198,8 @@ export class BotService {
 
   private async handleConfirmation(session: BotSession, from: string, input: string): Promise<void> {
     const d = session.session_data;
+    const confirmCategory = this.getSessionCategory(session);
+    const isSpaGym = confirmCategory === 'spa' || confirmCategory === 'gym';
 
     if (!input) {
       const dateLabel = new Date(d.date! + 'T00:00').toLocaleDateString('en-NG', {
@@ -929,8 +1212,13 @@ export class BotService {
         `🍽️ ${d.restaurant_name}`,
         `📅 ${dateLabel}`,
         `🕐 ${d.time}`,
-        `👥 ${d.party_size} guest${d.party_size! > 1 ? 's' : ''}`,
       ];
+
+      if (isSpaGym && d.selected_service_name) {
+        lines.push(`💆 ${d.selected_service_name} — ₦${(d.selected_service_price || 0).toLocaleString()}`);
+      } else {
+        lines.push(`👥 ${d.party_size} guest${d.party_size! > 1 ? 's' : ''}`);
+      }
 
       if (d.special_requests) {
         lines.push(`📝 ${d.special_requests}`);
@@ -984,7 +1272,7 @@ export class BotService {
       return;
     }
 
-    const confirmAbuse = this.intelligence.recordGibberish(from);
+    const confirmAbuse = await this.handleValidationFailure(from, 'confirmation', session);
     if (confirmAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, confirmAbuse.message); return; }
     await this.sendText(from, confirmAbuse.warn ? confirmAbuse.message : "Please tap *Confirm*, *Add Request*, or *For Someone*.");
   }
@@ -1056,7 +1344,7 @@ export class BotService {
       return;
     }
 
-    const otherAbuse = this.intelligence.recordGibberish(from);
+    const otherAbuse = await this.handleValidationFailure(from, 'book_for_other', session);
     if (otherAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, otherAbuse.message); return; }
     await this.sendText(from, otherAbuse.warn ? otherAbuse.message : 'Please tap *Myself* or *Someone else*.');
   }
@@ -1345,8 +1633,36 @@ export class BotService {
   private async createWhatsAppUser(phone: string, firstName: string, lastName: string, email?: string): Promise<string | null> {
     const supabase = this.supabaseService.getClient();
     const fullPhone = phone.startsWith('+') ? phone : `+${phone}`;
+    const rawPhone = phone.startsWith('+') ? phone.slice(1) : phone;
+
+    // Helper: look up profile by phone (checks both +phone and phone formats)
+    const findProfileByPhone = async (): Promise<string | null> => {
+      const { data: byFull } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('phone', fullPhone)
+        .single();
+      if (byFull?.id) return byFull.id;
+
+      const { data: byRaw } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('phone', rawPhone)
+        .single();
+      return byRaw?.id || null;
+    };
 
     try {
+      // First, check if this phone already exists in profiles
+      const existingId = await findProfileByPhone();
+      if (existingId) {
+        this.logger.log(`Found existing profile for phone ${phone} → ${existingId}`);
+        const updateData: Record<string, string> = { first_name: firstName, last_name: lastName };
+        if (email) updateData.email = email;
+        await supabase.from('profiles').update(updateData).eq('id', existingId);
+        return existingId;
+      }
+
       // Create auth user via admin API (service role)
       const createPayload: Record<string, unknown> = {
         phone: fullPhone,
@@ -1362,23 +1678,6 @@ export class BotService {
 
       if (authError) {
         this.logger.warn('Auth user creation error (will try lookup):', authError.message);
-
-        // Try lookup by phone first
-        const { data: byPhone } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('phone', fullPhone)
-          .single();
-
-        if (byPhone?.id) {
-          if (email) {
-            await supabase
-              .from('profiles')
-              .update({ email, first_name: firstName, last_name: lastName })
-              .eq('id', byPhone.id);
-          }
-          return byPhone.id;
-        }
 
         // Try lookup by email (phone might have been stored differently)
         if (email) {
@@ -1436,14 +1735,10 @@ export class BotService {
     } catch (error) {
       this.logger.error('createWhatsAppUser error:', (error as Error).message);
 
-      // Even on exception, try a simple phone lookup before giving up
+      // Even on exception, try a phone lookup before giving up
       try {
-        const { data: fallback } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('phone', fullPhone)
-          .single();
-        if (fallback?.id) return fallback.id;
+        const fallbackId = await findProfileByPhone();
+        if (fallbackId) return fallbackId;
       } catch { /* ignore */ }
 
       return null;
@@ -1469,14 +1764,25 @@ export class BotService {
     // Get or create user
     let userId = session.user_id;
     if (!userId) {
-      const phone = from.startsWith('+') ? from : `+${from}`;
+      const fullPhone = from.startsWith('+') ? from : `+${from}`;
+      const rawPhone = from.startsWith('+') ? from.slice(1) : from;
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('id, first_name')
-        .eq('phone', phone)
+        .eq('phone', fullPhone)
         .single();
 
-      userId = profile?.id || null;
+      if (profile?.id) {
+        userId = profile.id;
+      } else {
+        const { data: profileRaw } = await supabase
+          .from('profiles')
+          .select('id, first_name')
+          .eq('phone', rawPhone)
+          .single();
+        userId = profileRaw?.id || null;
+      }
     }
 
     if (!userId) {
@@ -1494,7 +1800,7 @@ export class BotService {
       .single();
 
     const depositPerGuest = restaurant?.deposit_per_guest || 0;
-    const totalDeposit = depositPerGuest * d.party_size!;
+    const totalDeposit = d.selected_service_price || (depositPerGuest * d.party_size!);
 
     const insertPayload: Record<string, unknown> = {
       restaurant_id: d.restaurant_id!,
@@ -2042,7 +2348,7 @@ export class BotService {
       return;
     }
 
-    const modifyAbuse = this.intelligence.recordGibberish(from);
+    const modifyAbuse = await this.handleValidationFailure(from, 'modify_booking', session);
     if (modifyAbuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, modifyAbuse.message); return; }
     await this.sendText(from, modifyAbuse.warn ? modifyAbuse.message : 'Please tap one of the options above.');
   }
@@ -2156,7 +2462,1181 @@ export class BotService {
     await this.deactivateSession(session.id);
   }
 
+  // ═══════════════════════════════════════════════════════
+  // FOOD ORDERING HANDLERS
+  // ═══════════════════════════════════════════════════════
+
+  // ── Order: City Selection (marketplace path) ──────────
+
+  private async handleOrderCitySelection(session: BotSession, from: string, input: string): Promise<void> {
+    if (!input) {
+      const cityKeys = Object.keys(CITIES) as Array<keyof typeof CITIES>;
+      await this.gupshupService.sendList({
+        to: from,
+        title: 'Select a City',
+        body: 'Where would you like to order from?',
+        buttonLabel: 'Choose City',
+        items: cityKeys.map((key) => ({
+          title: CITIES[key].name,
+          postbackText: key,
+        })),
+      });
+      await this.updateStep(session.id, 'order_city_selection');
+      return;
+    }
+
+    const cityKeys = Object.keys(CITIES) as Array<keyof typeof CITIES>;
+    const matchedCity = cityKeys.find(
+      (key) => key === input.toLowerCase() || CITIES[key].name.toLowerCase() === input.toLowerCase(),
+    );
+
+    if (!matchedCity) {
+      const abuse = await this.handleValidationFailure(from, 'order_city_selection', session);
+      if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+      await this.sendText(from, abuse.warn ? abuse.message : "I didn't catch that. Please tap one of the city options.");
+      return;
+    }
+
+    this.intelligence.resetAbuse(from);
+    session.session_data.city = matchedCity;
+    await this.updateSession(session.id, 'order_restaurant_selection', session.session_data);
+    await this.handleOrderRestaurantSelection(session, from, '');
+  }
+
+  // ── Order: Restaurant Selection (marketplace path) ────
+
+  private async handleOrderRestaurantSelection(session: BotSession, from: string, input: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+
+    if (!input) {
+      // Fetch restaurants in city that have menu items
+      const { data: restaurants } = await supabase
+        .from('restaurants')
+        .select('id, name, slug, cuisine_types, delivery_fee')
+        .eq('city', session.session_data.city!)
+        .in('status', ['active', 'approved'])
+        .limit(10);
+
+      if (!restaurants || restaurants.length === 0) {
+        await this.sendText(from, 'No restaurants with menus found in this city. Send *Hi* to start again.');
+        await this.deactivateSession(session.id);
+        return;
+      }
+
+      // Filter to restaurants that actually have menu items
+      const restaurantIds = restaurants.map(r => r.id);
+      const { data: menuCounts } = await supabase
+        .from('menu_items')
+        .select('restaurant_id')
+        .in('restaurant_id', restaurantIds)
+        .eq('is_available', true);
+
+      const hasMenu = new Set((menuCounts || []).map((m: { restaurant_id: string }) => m.restaurant_id));
+      const withMenu = restaurants.filter(r => hasMenu.has(r.id));
+
+      if (withMenu.length === 0) {
+        await this.sendText(from, 'No restaurants with active menus found in this city. Send *Hi* to start again.');
+        await this.deactivateSession(session.id);
+        return;
+      }
+
+      await this.gupshupService.sendList({
+        to: from,
+        title: 'Select Restaurant',
+        body: `Restaurants in ${CITIES[session.session_data.city as keyof typeof CITIES]?.name || 'your city'}:`,
+        buttonLabel: 'Choose Restaurant',
+        items: withMenu.slice(0, 10).map((r) => ({
+          title: r.name,
+          description: r.delivery_fee !== null ? `Delivery: ${r.delivery_fee === 0 ? 'Free' : formatNaira(r.delivery_fee)}` : 'Pickup only',
+          postbackText: r.slug,
+        })),
+      });
+      return;
+    }
+
+    // Look up by slug
+    const { data: restaurant } = await supabase
+      .from('restaurants')
+      .select('id, name, slug, delivery_fee')
+      .eq('slug', input.toLowerCase().replace(/\s+/g, '-'))
+      .single();
+
+    if (!restaurant) {
+      const abuse = await this.handleValidationFailure(from, 'order_restaurant_selection', session);
+      if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+      await this.sendText(from, abuse.warn ? abuse.message : "I didn't catch that. Please tap one of the restaurant options.");
+      return;
+    }
+
+    this.intelligence.resetAbuse(from);
+    session.session_data.order_restaurant_id = restaurant.id;
+    session.session_data.order_restaurant_name = restaurant.name;
+    session.session_data.order_delivery_fee = restaurant.delivery_fee ?? null;
+    await this.updateSession(session.id, 'order_menu_categories', session.session_data);
+    await this.sendText(from, `🍽️ Let's order from *${restaurant.name}*!`);
+    await this.handleOrderMenuCategories(session, from, '');
+  }
+
+  // ── Order: Menu Categories ────────────────────────────
+
+  private async handleOrderMenuCategories(session: BotSession, from: string, input: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    const restaurantId = session.session_data.order_restaurant_id || session.restaurant_id;
+    const labels = this.getOrderFlowLabels(session);
+
+    if (!restaurantId) {
+      await this.sendText(from, 'Something went wrong. Send *Hi* to start again.');
+      await this.deactivateSession(session.id);
+      return;
+    }
+
+    if (!input) {
+      const { data: categories } = await supabase
+        .from('menu_categories')
+        .select('id, name, description')
+        .eq('restaurant_id', restaurantId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .limit(10);
+
+      if (!categories || categories.length === 0) {
+        await this.sendText(from, `${labels.noItems} Send *Hi* to try another.`);
+        await this.deactivateSession(session.id);
+        return;
+      }
+
+      const cartCount = (session.session_data.cart || []).reduce((sum, i) => sum + i.quantity, 0);
+      const bodyText = cartCount > 0
+        ? `${labels.menuBody} (🛒 ${cartCount} ${labels.itemLabel}${cartCount !== 1 ? 's' : ''} in cart)`
+        : labels.menuBody;
+
+      await this.gupshupService.sendList({
+        to: from,
+        title: labels.menuTitle,
+        body: bodyText,
+        buttonLabel: labels.browseBtn,
+        items: categories.map((c) => ({
+          title: c.name,
+          description: c.description || '',
+          postbackText: `cat_${c.id}`,
+        })),
+      });
+      return;
+    }
+
+    // User selected a category
+    const categoryId = input.replace('cat_', '');
+    const { data: category } = await supabase
+      .from('menu_categories')
+      .select('id, name')
+      .eq('id', categoryId)
+      .single();
+
+    if (!category) {
+      const abuse = await this.handleValidationFailure(from, 'order_menu_categories', session);
+      if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+      await this.sendText(from, abuse.warn ? abuse.message : 'Please tap one of the menu categories.');
+      return;
+    }
+
+    this.intelligence.resetAbuse(from);
+    session.session_data.order_selected_category_id = category.id;
+    session.session_data.order_selected_category_name = category.name;
+    await this.updateSession(session.id, 'order_menu_items', session.session_data);
+    await this.handleOrderMenuItems(session, from, '');
+  }
+
+  // ── Order: Menu Items ──────────────────────────────────
+
+  private async handleOrderMenuItems(session: BotSession, from: string, input: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    const categoryId = session.session_data.order_selected_category_id;
+
+    if (!categoryId) {
+      await this.updateStep(session.id, 'order_menu_categories');
+      await this.handleOrderMenuCategories(session, from, '');
+      return;
+    }
+
+    if (!input) {
+      const { data: items } = await supabase
+        .from('menu_items')
+        .select('id, name, description, price')
+        .eq('category_id', categoryId)
+        .eq('is_available', true)
+        .order('sort_order', { ascending: true })
+        .limit(10);
+
+      if (!items || items.length === 0) {
+        await this.sendText(from, `No items available in ${session.session_data.order_selected_category_name}. Try another category.`);
+        await this.updateStep(session.id, 'order_menu_categories');
+        await this.handleOrderMenuCategories(session, from, '');
+        return;
+      }
+
+      await this.gupshupService.sendList({
+        to: from,
+        title: session.session_data.order_selected_category_name || 'Menu Items',
+        body: `Select an item to add to your cart:`,
+        buttonLabel: 'Choose Item',
+        items: items.map((item) => ({
+          title: item.name,
+          description: `${formatNaira(item.price)}${item.description ? ' — ' + item.description.slice(0, 50) : ''}`,
+          postbackText: `item_${item.id}`,
+        })),
+      });
+      return;
+    }
+
+    // User selected an item
+    const itemId = input.replace('item_', '');
+    const { data: item } = await supabase
+      .from('menu_items')
+      .select('id, name, price')
+      .eq('id', itemId)
+      .single();
+
+    if (!item) {
+      const abuse = await this.handleValidationFailure(from, 'order_menu_items', session);
+      if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+      await this.sendText(from, abuse.warn ? abuse.message : 'Please tap one of the menu items.');
+      return;
+    }
+
+    this.intelligence.resetAbuse(from);
+    session.session_data.order_selected_item_id = item.id;
+    session.session_data.order_selected_item_name = item.name;
+    session.session_data.order_selected_item_price = item.price;
+    await this.updateSession(session.id, 'order_item_quantity', session.session_data);
+    await this.handleOrderItemQuantity(session, from, '');
+  }
+
+  // ── Order: Item Quantity ───────────────────────────────
+
+  private async handleOrderItemQuantity(session: BotSession, from: string, input: string): Promise<void> {
+    const d = session.session_data;
+
+    if (!input) {
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: `*${d.order_selected_item_name}* — ${formatNaira(d.order_selected_item_price || 0)}\n\nHow many?`,
+        buttons: [
+          { id: '1', title: '1' },
+          { id: '2', title: '2' },
+          { id: '3', title: '3' },
+        ],
+      });
+      await this.sendText(from, `Or type a number (1-${ORDER_DEFAULTS.maxItemQuantity}).`);
+      return;
+    }
+
+    const qty = parseInt(input, 10);
+    if (isNaN(qty) || qty < 1 || qty > ORDER_DEFAULTS.maxItemQuantity) {
+      await this.sendText(from, `Please enter a number between 1 and ${ORDER_DEFAULTS.maxItemQuantity}.`);
+      return;
+    }
+
+    // Initialize cart if needed
+    if (!d.cart) d.cart = [];
+
+    // Check cart limit
+    const totalItems = d.cart.reduce((sum, i) => sum + i.quantity, 0);
+    if (totalItems + qty > ORDER_DEFAULTS.maxCartItems) {
+      await this.sendText(from, `Your cart can hold up to ${ORDER_DEFAULTS.maxCartItems} items. Please checkout or remove items first.`);
+      return;
+    }
+
+    // Merge into cart (accumulate if same item)
+    const existingIndex = d.cart.findIndex(i => i.item_id === d.order_selected_item_id);
+    if (existingIndex >= 0) {
+      d.cart[existingIndex].quantity += qty;
+    } else {
+      d.cart.push({
+        item_id: d.order_selected_item_id!,
+        name: d.order_selected_item_name!,
+        price: d.order_selected_item_price!,
+        quantity: qty,
+      });
+    }
+
+    this.intelligence.resetAbuse(from);
+    await this.updateSession(session.id, 'order_add_more', d);
+    await this.sendText(from, `Added ${qty}x *${d.order_selected_item_name}* to cart ✓`);
+    await this.handleOrderAddMore(session, from, '');
+  }
+
+  // ── Order: Add More ───────────────────────────────────
+
+  private async handleOrderAddMore(session: BotSession, from: string, input: string): Promise<void> {
+    const cart = session.session_data.cart || [];
+
+    if (!input) {
+      const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+      const cartTotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: `🛒 Cart: ${cartCount} item${cartCount !== 1 ? 's' : ''} — ${formatNaira(cartTotal)}`,
+        buttons: [
+          { id: 'add_more', title: '➕ Add More' },
+          { id: 'view_cart', title: '🛒 View Cart' },
+          { id: 'checkout', title: '✅ Checkout' },
+        ],
+      });
+      return;
+    }
+
+    const response = input.toLowerCase();
+
+    if (response === 'add_more') {
+      await this.updateStep(session.id, 'order_menu_categories');
+      await this.handleOrderMenuCategories(session, from, '');
+      return;
+    }
+
+    if (response === 'view_cart') {
+      await this.updateStep(session.id, 'order_cart_review');
+      await this.handleOrderCartReview(session, from, '');
+      return;
+    }
+
+    if (response === 'checkout') {
+      if (cart.length === 0) {
+        await this.sendText(from, 'Your cart is empty! Add some items first.');
+        await this.updateStep(session.id, 'order_menu_categories');
+        await this.handleOrderMenuCategories(session, from, '');
+        return;
+      }
+      await this.updateStep(session.id, 'order_type_selection');
+      await this.handleOrderTypeSelection(session, from, '');
+      return;
+    }
+
+    const abuse = await this.handleValidationFailure(from, 'order_add_more', session);
+    if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Add More*, *View Cart*, or *Checkout*.');
+  }
+
+  // ── Order: Cart Review ────────────────────────────────
+
+  private async handleOrderCartReview(session: BotSession, from: string, input: string): Promise<void> {
+    const cart = session.session_data.cart || [];
+
+    if (!input) {
+      if (cart.length === 0) {
+        await this.sendText(from, 'Your cart is empty! Let\'s add some items.');
+        await this.updateStep(session.id, 'order_menu_categories');
+        await this.handleOrderMenuCategories(session, from, '');
+        return;
+      }
+
+      const lines = ['🛒 *Your Cart*', ''];
+      let subtotal = 0;
+      for (const item of cart) {
+        const lineTotal = item.price * item.quantity;
+        subtotal += lineTotal;
+        lines.push(`${item.quantity}x ${item.name} — ${formatNaira(lineTotal)}`);
+      }
+      lines.push('', `*Subtotal: ${formatNaira(subtotal)}*`);
+
+      await this.sendText(from, lines.join('\n'));
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: 'What would you like to do?',
+        buttons: [
+          { id: 'checkout', title: '✅ Checkout' },
+          { id: 'add_more', title: '➕ Add More' },
+          { id: 'clear_cart', title: '🗑️ Clear Cart' },
+        ],
+      });
+      return;
+    }
+
+    const response = input.toLowerCase();
+
+    if (response === 'checkout') {
+      if (cart.length === 0) {
+        await this.sendText(from, 'Your cart is empty! Add some items first.');
+        await this.updateStep(session.id, 'order_menu_categories');
+        await this.handleOrderMenuCategories(session, from, '');
+        return;
+      }
+      await this.updateStep(session.id, 'order_type_selection');
+      await this.handleOrderTypeSelection(session, from, '');
+      return;
+    }
+
+    if (response === 'add_more') {
+      await this.updateStep(session.id, 'order_menu_categories');
+      await this.handleOrderMenuCategories(session, from, '');
+      return;
+    }
+
+    if (response === 'clear_cart') {
+      session.session_data.cart = [];
+      await this.updateSession(session.id, 'order_menu_categories', session.session_data);
+      await this.sendText(from, '🗑️ Cart cleared! Let\'s start fresh.');
+      await this.handleOrderMenuCategories(session, from, '');
+      return;
+    }
+
+    const abuse = await this.handleValidationFailure(from, 'order_cart_review', session);
+    if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Checkout*, *Add More*, or *Clear Cart*.');
+  }
+
+  // ── Order: Type Selection (pickup/delivery) ───────────
+
+  private async handleOrderTypeSelection(session: BotSession, from: string, input: string): Promise<void> {
+    const orderLabels = this.getOrderFlowLabels(session);
+
+    // Auto-skip delivery/instructions for non-physical categories (church, cinema, events)
+    if (orderLabels.orderType === 'none') {
+      session.session_data.order_type = 'pickup';
+      if (orderLabels.specialInstr) {
+        await this.updateSession(session.id, 'order_special_instructions', session.session_data);
+        await this.handleOrderSpecialInstructions(session, from, '');
+      } else {
+        await this.updateSession(session.id, 'order_confirm', session.session_data);
+        await this.handleOrderConfirm(session, from, '');
+      }
+      return;
+    }
+
+    const deliveryFee = session.session_data.order_delivery_fee;
+
+    if (!input) {
+      // If delivery not available, auto-select pickup
+      if (deliveryFee === null || deliveryFee === undefined) {
+        session.session_data.order_type = 'pickup';
+        session.session_data.order_delivery_fee = null;
+        await this.updateSession(session.id, 'order_special_instructions', session.session_data);
+        await this.sendText(from, '🏃 This restaurant offers *pickup only*.');
+        await this.handleOrderSpecialInstructions(session, from, '');
+        return;
+      }
+
+      const deliveryLabel = deliveryFee === 0 ? 'Free delivery' : `Delivery fee: ${formatNaira(deliveryFee)}`;
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: `How would you like to get your order?\n\n${deliveryLabel}`,
+        buttons: [
+          { id: 'pickup', title: '🏃 Pickup' },
+          { id: 'delivery', title: '🚗 Delivery' },
+        ],
+      });
+      return;
+    }
+
+    const response = input.toLowerCase();
+
+    if (response === 'pickup') {
+      session.session_data.order_type = 'pickup';
+      await this.updateSession(session.id, 'order_special_instructions', session.session_data);
+      await this.handleOrderSpecialInstructions(session, from, '');
+      return;
+    }
+
+    if (response === 'delivery') {
+      session.session_data.order_type = 'delivery';
+      await this.updateSession(session.id, 'order_delivery_address', session.session_data);
+      await this.handleOrderDeliveryAddress(session, from, '');
+      return;
+    }
+
+    const abuse = await this.handleValidationFailure(from, 'order_type_selection', session);
+    if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Pickup* or *Delivery*.');
+  }
+
+  // ── Order: Delivery Address ───────────────────────────
+
+  private async handleOrderDeliveryAddress(session: BotSession, from: string, input: string): Promise<void> {
+    if (!input) {
+      await this.sendText(from, '📍 Please type your full delivery address:');
+      return;
+    }
+
+    if (input.trim().length < 10) {
+      await this.sendText(from, 'Please provide a more detailed address (at least 10 characters):');
+      return;
+    }
+
+    session.session_data.delivery_address = input.trim();
+    await this.updateSession(session.id, 'order_special_instructions', session.session_data);
+    await this.sendText(from, `📍 Delivery to: ${input.trim()}`);
+    await this.handleOrderSpecialInstructions(session, from, '');
+  }
+
+  // ── Order: Special Instructions ───────────────────────
+
+  private async handleOrderSpecialInstructions(session: BotSession, from: string, input: string): Promise<void> {
+    if (!input) {
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: 'Any special instructions for your order?',
+        buttons: [
+          { id: 'no_instructions', title: 'No, proceed' },
+        ],
+      });
+      await this.sendText(from, 'Or type your instructions (e.g. "extra spicy", "no onions"):');
+      return;
+    }
+
+    if (input.toLowerCase() === 'no_instructions' || input.toLowerCase() === 'skip') {
+      session.session_data.order_special_instructions = undefined;
+    } else {
+      session.session_data.order_special_instructions = input.trim();
+    }
+
+    await this.updateSession(session.id, 'order_confirm', session.session_data);
+    await this.handleOrderConfirm(session, from, '');
+  }
+
+  // ── Order: Confirm ────────────────────────────────────
+
+  private async handleOrderConfirm(session: BotSession, from: string, input: string): Promise<void> {
+    const d = session.session_data;
+    const cart = d.cart || [];
+    const confirmLabels = this.getOrderFlowLabels(session);
+
+    if (!input) {
+      const subtotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+      const deliveryFeeAmount = d.order_type === 'delivery' ? (d.order_delivery_fee || 0) : 0;
+      const total = subtotal + deliveryFeeAmount;
+
+      d.order_subtotal = subtotal;
+      d.order_total = total;
+      await this.updateSession(session.id, 'order_confirm', d);
+
+      const lines = [
+        `📋 *${confirmLabels.summaryLabel}*`,
+        '',
+        `🍽️ ${d.order_restaurant_name}`,
+      ];
+
+      // Only show delivery/pickup line for categories that have it
+      if (confirmLabels.deliverySection) {
+        lines.push(`📦 ${d.order_type === 'delivery' ? '🚗 Delivery' : '🏃 Pickup'}`);
+      }
+      lines.push('');
+
+      for (const item of cart) {
+        lines.push(`${item.quantity}x ${item.name} — ${formatNaira(item.price * item.quantity)}`);
+      }
+
+      lines.push('');
+      lines.push(`Subtotal: ${formatNaira(subtotal)}`);
+      if (deliveryFeeAmount > 0) {
+        lines.push(`Delivery: ${formatNaira(deliveryFeeAmount)}`);
+      }
+      lines.push(`*Total: ${formatNaira(total)}*`);
+
+      if (d.delivery_address) {
+        lines.push('', `📍 ${d.delivery_address}`);
+      }
+      if (d.order_special_instructions) {
+        lines.push(`📝 ${d.order_special_instructions}`);
+      }
+
+      await this.sendText(from, lines.join('\n'));
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: `Confirm this ${confirmLabels.itemLabel}?`,
+        buttons: [
+          { id: 'confirm_order', title: '✅ Confirm' },
+          { id: 'edit_cart', title: '✏️ Edit Cart' },
+          { id: 'cancel_order', title: '❌ Cancel' },
+        ],
+      });
+      return;
+    }
+
+    const response = input.toLowerCase();
+
+    if (response === 'cancel_order' || response === 'cancel') {
+      await this.sendText(from, 'Order cancelled. Send *Hi* to start again anytime!');
+      await this.deactivateSession(session.id);
+      return;
+    }
+
+    if (response === 'edit_cart') {
+      await this.updateStep(session.id, 'order_cart_review');
+      await this.handleOrderCartReview(session, from, '');
+      return;
+    }
+
+    if (response === 'confirm_order' || response === 'confirm') {
+      await this.createFoodOrder(session, from);
+      return;
+    }
+
+    const abuse = await this.handleValidationFailure(from, 'order_confirm', session);
+    if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
+    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Confirm*, *Edit Cart*, or *Cancel*.');
+  }
+
+  // ── Order: Collect Name ───────────────────────────────
+
+  private async handleOrderCollectName(session: BotSession, from: string, input: string): Promise<void> {
+    if (!input) {
+      await this.sendText(from, 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):');
+      return;
+    }
+
+    const parts = input.trim().split(/\s+/);
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(' ') || '';
+
+    if (!firstName || firstName.length < 2) {
+      await this.sendText(from, 'Please enter a valid name (first and last name):');
+      return;
+    }
+
+    session.session_data.first_name = firstName;
+    session.session_data.last_name = lastName;
+    await this.updateSession(session.id, 'order_collect_email', session.session_data);
+
+    await this.sendText(from, `Thanks, ${firstName}! 📧 What's your email address?\n\nWe'll send your order confirmation there.`);
+  }
+
+  // ── Order: Collect Email ──────────────────────────────
+
+  private async handleOrderCollectEmail(session: BotSession, from: string, input: string): Promise<void> {
+    if (!input) {
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: '📧 Please type your email address, or skip:',
+        buttons: [
+          { id: 'skip_email', title: 'Skip' },
+        ],
+      });
+      return;
+    }
+
+    const firstName = session.session_data.first_name || '';
+    const lastName = session.session_data.last_name || '';
+    let email: string | undefined;
+
+    if (input.toLowerCase() !== 'skip_email' && input.toLowerCase() !== 'skip') {
+      email = input.trim().toLowerCase();
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        await this.sendText(from, 'That doesn\'t look like a valid email. Please try again (e.g. ade@gmail.com) or type *skip*:');
+        return;
+      }
+
+      session.session_data.email = email;
+    }
+
+    // Create the Supabase auth user + profile
+    const userId = await this.createWhatsAppUser(from, firstName, lastName, email);
+
+    if (!userId) {
+      if (email) {
+        this.logger.warn(`User creation failed with email ${email}, retrying without email`);
+        const retryUserId = await this.createWhatsAppUser(from, firstName, lastName);
+
+        if (retryUserId) {
+          session.user_id = retryUserId;
+          await this.supabaseService.getClient()
+            .from('bot_sessions')
+            .update({ user_id: retryUserId, session_data: session.session_data })
+            .eq('id', session.id);
+
+          await this.sendText(from, `Thanks, ${firstName}! 🎉 Let's complete your order.`);
+          await this.createFoodOrder(session, from);
+          return;
+        }
+      }
+
+      await this.sendText(from, 'Hmm, that didn\'t work. Please try a different email, or type *skip* to continue without one:');
+      return;
+    }
+
+    session.user_id = userId;
+    await this.supabaseService.getClient()
+      .from('bot_sessions')
+      .update({ user_id: userId, session_data: session.session_data })
+      .eq('id', session.id);
+
+    await this.sendText(from, `Great, ${firstName}! 🎉 Your account is set up.`);
+    await this.createFoodOrder(session, from);
+  }
+
+  // ── Order: Create Food Order ──────────────────────────
+
+  private async createFoodOrder(session: BotSession, from: string): Promise<void> {
+    const supabase = this.supabaseService.getClient();
+    const d = session.session_data;
+    const cart = d.cart || [];
+
+    // Get or create user
+    let userId = session.user_id;
+    if (!userId) {
+      const fullPhone = from.startsWith('+') ? from : `+${from}`;
+      const rawPhone = from.startsWith('+') ? from.slice(1) : from;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, first_name')
+        .eq('phone', fullPhone)
+        .single();
+
+      if (profile?.id) {
+        userId = profile.id;
+      } else {
+        const { data: profileRaw } = await supabase
+          .from('profiles')
+          .select('id, first_name')
+          .eq('phone', rawPhone)
+          .single();
+        userId = profileRaw?.id || null;
+      }
+    }
+
+    if (!userId) {
+      // No account — ask for name to create one
+      await this.updateSession(session.id, 'order_collect_name', d);
+      await this.handleOrderCollectName(session, from, '');
+      return;
+    }
+
+    const restaurantId = d.order_restaurant_id || session.restaurant_id;
+    if (!restaurantId || cart.length === 0) {
+      await this.sendText(from, 'Something went wrong. Send *Hi* to start again.');
+      await this.deactivateSession(session.id);
+      return;
+    }
+
+    const subtotal = d.order_subtotal || cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+    const deliveryFeeAmount = d.order_type === 'delivery' ? (d.order_delivery_fee || 0) : 0;
+    const total = d.order_total || subtotal + deliveryFeeAmount;
+
+    // Get customer info
+    const phone = from.startsWith('+') ? from : `+${from}`;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, email')
+      .eq('id', userId)
+      .single();
+
+    const customerName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || d.first_name || null;
+
+    // INSERT order
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        restaurant_id: restaurantId,
+        user_id: userId,
+        order_type: d.order_type || 'pickup',
+        status: 'pending_payment',
+        subtotal,
+        delivery_fee: deliveryFeeAmount,
+        total,
+        delivery_address: d.delivery_address || null,
+        special_instructions: d.order_special_instructions || null,
+        customer_name: customerName,
+        customer_phone: phone,
+        customer_email: d.email || profile?.email || null,
+      })
+      .select('id, reference_code')
+      .single();
+
+    if (orderError || !order) {
+      this.logger.error('Failed to create food order via bot', orderError);
+      await this.sendText(from, 'Sorry, something went wrong creating your order. Send *Hi* to try again.');
+      await this.deactivateSession(session.id);
+      return;
+    }
+
+    // INSERT order items (snapshot from cart)
+    const orderItems = cart.map(item => ({
+      order_id: order.id,
+      menu_item_id: item.item_id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      line_total: item.price * item.quantity,
+    }));
+
+    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+    if (itemsError) {
+      this.logger.error('Failed to insert order items', itemsError);
+    }
+
+    d.order_id = order.id;
+    d.order_reference_code = order.reference_code;
+
+    // Initialize payment
+    let userEmail = d.email || profile?.email || undefined;
+
+    const paymentResult = await this.initializeOrderPayment(
+      order.id,
+      userId,
+      total,
+      order.reference_code,
+      d.order_restaurant_name || 'Restaurant',
+      from,
+      userEmail,
+    );
+
+    if (paymentResult) {
+      d.order_payment_reference = paymentResult.reference;
+      await this.updateSession(session.id, 'order_payment', d);
+
+      await this.sendText(from, [
+        `📋 *Order Created!*`,
+        ``,
+        `🍽️ ${d.order_restaurant_name}`,
+        `📦 ${d.order_type === 'delivery' ? '🚗 Delivery' : '🏃 Pickup'}`,
+        `🔑 Ref: *${order.reference_code}*`,
+        ``,
+        `💳 *Total: ${formatNaira(total)}*`,
+        ``,
+        `Pay here 👇`,
+        paymentResult.url,
+      ].join('\n'));
+
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: `Tap *I've Paid* after completing payment:`,
+        buttons: [
+          { id: 'i_paid', title: "I've Paid" },
+          { id: 'cancel', title: 'Cancel' },
+        ],
+      });
+    } else {
+      // Payment init failed
+      await this.updateSession(session.id, 'order_complete', d);
+      await this.deactivateSession(session.id);
+
+      await this.sendText(from, [
+        `📋 *Order Created!*`,
+        ``,
+        `🍽️ ${d.order_restaurant_name}`,
+        `🔑 Ref: *${order.reference_code}*`,
+        ``,
+        `💳 Total: ${formatNaira(total)}`,
+        `Please visit naijadine.com to complete payment.`,
+      ].join('\n'));
+    }
+  }
+
+  // ── Order: Initialize Payment ─────────────────────────
+
+  private async initializeOrderPayment(
+    orderId: string,
+    userId: string,
+    amount: number, // in Naira
+    referenceCode: string,
+    restaurantName: string,
+    phone: string,
+    userEmail?: string,
+  ): Promise<{ url: string; reference: string } | null> {
+    const supabase = this.supabaseService.getClient();
+    const idempotencyKey = randomUUID();
+    const amountInKobo = amount * 100;
+    const email = userEmail || `${phone.replace('+', '')}@whatsapp.naijadine.com`;
+
+    try {
+      if (!this.paystackSecretKey) {
+        // Dev mode mock
+        this.logger.warn('PAYSTACK not set — mock payment for food order');
+        const mockRef = `mock_fo_${idempotencyKey}`;
+
+        await supabase.from('payments').insert({
+          reservation_id: null,
+          order_id: orderId,
+          user_id: userId,
+          amount,
+          currency: 'NGN',
+          gateway: 'paystack',
+          gateway_reference: mockRef,
+          status: 'pending',
+          idempotency_key: idempotencyKey,
+          metadata: { order_ref: referenceCode, channel: 'whatsapp' },
+        });
+
+        return { url: `https://naijadine.com/pay?ref=${mockRef}`, reference: mockRef };
+      }
+
+      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.paystackSecretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          amount: amountInKobo,
+          metadata: {
+            order_id: orderId,
+            user_id: userId,
+            order_ref: referenceCode,
+            channel: 'whatsapp',
+            custom_fields: [
+              { display_name: 'Restaurant', variable_name: 'restaurant', value: restaurantName },
+              { display_name: 'Order Ref', variable_name: 'order_ref', value: referenceCode },
+            ],
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.status) {
+        this.logger.error('Paystack initialize for food order failed', data);
+        return null;
+      }
+
+      const { data: payment } = await supabase.from('payments').insert({
+        reservation_id: null,
+        order_id: orderId,
+        user_id: userId,
+        amount,
+        currency: 'NGN',
+        gateway: 'paystack',
+        gateway_reference: data.data.reference,
+        status: 'pending',
+        idempotency_key: idempotencyKey,
+        metadata: {
+          access_code: data.data.access_code,
+          order_ref: referenceCode,
+          channel: 'whatsapp',
+        },
+      }).select().single();
+
+      if (payment) {
+        await supabase
+          .from('orders')
+          .update({ payment_id: payment.id })
+          .eq('id', orderId);
+      }
+
+      return {
+        url: data.data.authorization_url,
+        reference: data.data.reference,
+      };
+    } catch (error) {
+      this.logger.error('Paystack init error for food order:', (error as Error).message);
+      return null;
+    }
+  }
+
+  // ── Order: Payment Check ──────────────────────────────
+
+  private async handleOrderPaymentCheck(session: BotSession, from: string, input: string): Promise<void> {
+    const text = input.toLowerCase();
+
+    if (text === 'check' || text === 'done' || text === 'paid' || text === 'i_paid' || text === "i've paid") {
+      const ref = session.session_data.order_payment_reference;
+      if (!ref) {
+        await this.sendText(from, 'Something went wrong. Send *Hi* to start over.');
+        await this.deactivateSession(session.id);
+        return;
+      }
+
+      const verified = await this.verifyOrderPayment(ref);
+
+      if (verified) {
+        const d = session.session_data;
+        await this.sendText(from, [
+          `✅ *Payment Confirmed!*`,
+          ``,
+          `Your order at *${d.order_restaurant_name}* is confirmed!`,
+          `📦 ${d.order_type === 'delivery' ? '🚗 Delivery' : '🏃 Pickup'}`,
+          `🔑 Ref: *${d.order_reference_code}*`,
+          ``,
+          `We'll notify you when it's ready. 🎉`,
+        ].join('\n'));
+
+        await this.updateSession(session.id, 'order_complete', d);
+        await this.deactivateSession(session.id);
+      } else {
+        await this.gupshupService.sendButtons({
+          to: from,
+          body: `Payment not yet received. Please complete payment using the link sent earlier.\n\nTap *I've Paid* after paying, or *Cancel* to cancel.`,
+          buttons: [
+            { id: 'i_paid', title: "I've Paid" },
+            { id: 'cancel', title: 'Cancel' },
+          ],
+        });
+      }
+    } else if (text === 'cancel') {
+      const supabase = this.supabaseService.getClient();
+      if (session.session_data.order_id) {
+        await supabase
+          .from('orders')
+          .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'customer' })
+          .eq('id', session.session_data.order_id);
+      }
+      await this.sendText(from, 'Order cancelled. Send *Hi* to start again anytime!');
+      await this.deactivateSession(session.id);
+    } else {
+      await this.gupshupService.sendButtons({
+        to: from,
+        body: `Please complete your payment using the link sent above.\n\nTap *I've Paid* after paying, or *Cancel* to cancel.`,
+        buttons: [
+          { id: 'i_paid', title: "I've Paid" },
+          { id: 'cancel', title: 'Cancel' },
+        ],
+      });
+    }
+  }
+
+  // ── Order: Verify Payment ─────────────────────────────
+
+  private async verifyOrderPayment(reference: string): Promise<boolean> {
+    const supabase = this.supabaseService.getClient();
+
+    // Handle mock payments (dev mode)
+    if (!this.paystackSecretKey || reference.startsWith('mock_')) {
+      await supabase
+        .from('payments')
+        .update({ status: 'success', paid_at: new Date().toISOString() })
+        .eq('gateway_reference', reference);
+
+      const { data: payment } = await supabase
+        .from('payments')
+        .select('order_id')
+        .eq('gateway_reference', reference)
+        .single();
+
+      if (payment?.order_id) {
+        await supabase
+          .from('orders')
+          .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+          .eq('id', payment.order_id);
+      }
+      return true;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+        { headers: { Authorization: `Bearer ${this.paystackSecretKey}` } },
+      );
+
+      const data = await response.json();
+      this.logger.log(`Paystack verify for food order ${reference}: status=${data?.data?.status}`);
+
+      if (data?.data?.status === 'success') {
+        const { data: payment } = await supabase
+          .from('payments')
+          .select('id, order_id, amount')
+          .eq('gateway_reference', reference)
+          .single();
+
+        if (payment) {
+          const webhookAmountKobo = data.data.amount as number;
+          const expectedKobo = payment.amount * 100;
+
+          if (webhookAmountKobo !== expectedKobo) {
+            this.logger.error(`Order amount mismatch: paystack=${webhookAmountKobo}, expected=${expectedKobo}`);
+            return false;
+          }
+
+          const authorization = data.data.authorization as Record<string, string> | undefined;
+          await supabase
+            .from('payments')
+            .update({
+              status: 'success',
+              gateway_status: 'success',
+              payment_method: (data.data.channel as string) || 'card',
+              card_last_four: authorization?.last4 || null,
+              card_brand: authorization?.brand || null,
+              paid_at: new Date().toISOString(),
+            })
+            .eq('id', payment.id);
+
+          if (payment.order_id) {
+            await supabase
+              .from('orders')
+              .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+              .eq('id', payment.order_id);
+          }
+        }
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.error('Paystack verify error for food order:', (error as Error).message);
+      return false;
+    }
+  }
+
+  // ── Category-Aware Order Flow Labels ─────────────────────
+
+  private getOrderFlowLabels(session: BotSession) {
+    const category = this.getSessionCategory(session);
+    switch (category) {
+      case 'church':
+        return { menuTitle: 'Giving Options', browseBtn: 'Browse Options', menuBody: 'Choose a giving category:',
+                 itemLabel: 'offering', noItems: 'No giving options available right now.',
+                 orderType: 'none' as const, specialInstr: false,
+                 summaryLabel: 'Offering Summary', deliverySection: false };
+      case 'cinema':
+        return { menuTitle: 'Now Showing', browseBtn: 'See Movies', menuBody: 'What would you like to see?',
+                 itemLabel: 'ticket', noItems: 'No movies showing right now.',
+                 orderType: 'none' as const, specialInstr: false,
+                 summaryLabel: 'Ticket Summary', deliverySection: false };
+      case 'events':
+        return { menuTitle: 'Upcoming Events', browseBtn: 'Browse Events', menuBody: 'Browse upcoming events:',
+                 itemLabel: 'ticket', noItems: 'No events available right now.',
+                 orderType: 'none' as const, specialInstr: false,
+                 summaryLabel: 'Ticket Summary', deliverySection: false };
+      case 'shop':
+        return { menuTitle: 'Product Categories', browseBtn: 'Browse Products', menuBody: 'Browse our products:',
+                 itemLabel: 'item', noItems: 'No products available right now.',
+                 orderType: 'show' as const, specialInstr: true,
+                 summaryLabel: 'Order Summary', deliverySection: true };
+      default: // restaurant (food ordering)
+        return { menuTitle: 'Menu Categories', browseBtn: 'Browse Menu', menuBody: 'Browse the menu:',
+                 itemLabel: 'item', noItems: 'No menu items available at this restaurant right now.',
+                 orderType: 'show' as const, specialInstr: true,
+                 summaryLabel: 'Order Summary', deliverySection: true };
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────────
+
+  /**
+   * Handle a validation failure: record gibberish + track retries.
+   * After 3 failures on the same step, automatically sends contextual help.
+   * Returns the abuse result (caller should check timeout/warn as usual).
+   */
+  private async handleValidationFailure(
+    from: string,
+    step: string,
+    session: BotSession,
+  ): Promise<AbuseResult> {
+    const abuse = this.intelligence.recordGibberish(from);
+
+    // Track retries for auto-help
+    const retry = this.intelligence.recordValidationFailure(from, step);
+    if (retry.showHelp && !abuse.timeout && !abuse.warn) {
+      const helpText = this.intelligence.getContextualHelp(step);
+      await this.sendText(from, `💡 *Need help?*\n${helpText}\n\nOr type *help* for all options.`);
+    }
+
+    return abuse;
+  }
+
+  private getSessionCategory(session: BotSession): BusinessCategory {
+    return (session.session_data.business_category as BusinessCategory) || 'restaurant';
+  }
+
+  private async resolveCategory(restaurantId: string): Promise<BusinessCategory> {
+    const { data } = await this.supabaseService.getClient()
+      .from('restaurants')
+      .select('business_category')
+      .eq('id', restaurantId)
+      .single();
+    return (data?.business_category as BusinessCategory) || 'restaurant';
+  }
 
   private async getActiveSession(phone: string): Promise<BotSession | null> {
     const supabase = this.supabaseService.getClient();
@@ -2193,6 +3673,62 @@ export class BotService {
       .from('bot_sessions')
       .update({ is_active: false })
       .eq('id', sessionId);
+  }
+
+  private async lookupBotCode(text: string): Promise<string | null> {
+    const supabase = this.supabaseService.getClient();
+    const upperText = text.toUpperCase().trim();
+
+    const FILLER_WORDS = new Set([
+      'HI', 'HELLO', 'HEY', 'YO', 'SUP', 'HIYA', 'HOWDY',
+      'GOOD', 'MORNING', 'AFTERNOON', 'EVENING', 'NIGHT',
+      'BOOK', 'BOOKING', 'RESERVE', 'RESERVATION', 'TABLE', 'ORDER',
+      'I', 'WANT', 'NEED', 'WOULD', 'LIKE', 'TO', 'A', 'AT', 'THE', 'FOR',
+      'PLEASE', 'PLS', 'PLZ', 'THANKS', 'THANK', 'YOU',
+      'DUDE', 'BRO', 'SIS', 'ABEG', 'BIKO', 'JO',
+      'CAN', 'ME', 'MY', 'GET', 'MAKE', 'HELP',
+    ]);
+
+    // 1. Exact match
+    if (/^[A-Z0-9-]{2,30}$/.test(upperText)) {
+      const { data } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('bot_code', upperText)
+        .in('status', ['active', 'approved'])
+        .maybeSingle();
+      if (data?.id) return data.id;
+    }
+
+    // 2. Hyphenated token match
+    const tokens = upperText.split(/\s+/);
+    const hyphenated = tokens.filter(t => t.includes('-') && /^[A-Z0-9-]{2,30}$/.test(t));
+    for (const candidate of hyphenated) {
+      const { data } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('bot_code', candidate)
+        .in('status', ['active', 'approved'])
+        .maybeSingle();
+      if (data?.id) return data.id;
+    }
+
+    // 3. Strip filler words
+    const meaningful = tokens.filter(t => !FILLER_WORDS.has(t) && t.length > 0);
+    if (meaningful.length > 0 && meaningful.length <= 5) {
+      const candidate = meaningful.join('-').replace(/-+/g, '-').slice(0, 30);
+      if (/^[A-Z0-9-]{2,30}$/.test(candidate)) {
+        const { data } = await supabase
+          .from('restaurants')
+          .select('id')
+          .eq('bot_code', candidate)
+          .in('status', ['active', 'approved'])
+          .maybeSingle();
+        if (data?.id) return data.id;
+      }
+    }
+
+    return null;
   }
 
   private async sendText(to: string, text: string): Promise<void> {

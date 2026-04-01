@@ -2,12 +2,23 @@ import { Injectable } from '@nestjs/common';
 
 // ── Types ──────────────────────────────────────────────
 
+export type BusinessCategory =
+  | 'restaurant'
+  | 'church'
+  | 'gym'
+  | 'cinema'
+  | 'spa'
+  | 'events'
+  | 'shop'
+  | 'other';
+
 export type BotIntent =
   | 'greeting'
   | 'help'
   | 'booking'
   | 'cancel'
   | 'status'
+  | 'order'
   | 'menu'
   | 'pricing'
   | 'hours'
@@ -42,6 +53,137 @@ interface AbuseRecord {
   cooldownUntil: number;
 }
 
+interface ValidationRetryRecord {
+  stepId: string;
+  failureCount: number;
+  lastFailure: number;
+}
+
+// ── Category labels & emoji ────────────────────────────
+
+const CATEGORY_LABELS: Record<BusinessCategory, { emoji: string; noun: string; action: string; plural: string }> = {
+  restaurant: { emoji: '🍽️', noun: 'reservation', action: 'Book', plural: 'reservations' },
+  church:     { emoji: '⛪', noun: 'payment', action: 'Pay', plural: 'payments' },
+  gym:        { emoji: '🏋️', noun: 'session', action: 'Book', plural: 'sessions' },
+  cinema:     { emoji: '🎬', noun: 'ticket', action: 'Buy', plural: 'tickets' },
+  spa:        { emoji: '💆', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  events:     { emoji: '🎉', noun: 'ticket', action: 'Buy', plural: 'tickets' },
+  shop:       { emoji: '🛍️', noun: 'order', action: 'Order', plural: 'orders' },
+  other:      { emoji: '📋', noun: 'booking', action: 'Book', plural: 'bookings' },
+};
+
+// ── Category-aware profanity responses (first offense) ─
+
+const PROFANITY_RESPONSES: Record<BusinessCategory, string[]> = {
+  restaurant: [
+    "Hangry? I get it! Let me help you find a table instead. 🍽️",
+    "I understand the frustration. Let me help you book a great meal. 😊",
+    "Let's channel that energy into finding you amazing food! 🍛",
+  ],
+  church: [
+    "God loves a cheerful giver, friend. Let me help you with your offering. ⛪",
+    "Grace and peace! Let me help you with what you need. 🙏",
+    "Let's keep the spirit positive! How can I assist you today? ⛪",
+  ],
+  gym: [
+    "Channel that energy into a workout! Let me help you book a session. 🏋️",
+    "Save the intensity for the gym floor! How can I help you? 💪",
+    "That's some energy! Let's put it towards booking your next session. 🏋️",
+  ],
+  cinema: [
+    "Let's keep it rated G! I'm here to get you tickets. 🎬",
+    "Save the drama for the big screen! How can I help? 🎬",
+    "Plot twist: I'm here to help, not argue! Let me get you sorted. 🍿",
+  ],
+  spa: [
+    "Sounds like you need a spa day more than ever! Let me help you book one. 💆",
+    "Deep breaths... I'm here to help you relax. Let's book an appointment. 🧘",
+    "Let's turn that stress into serenity! How can I help? 💆",
+  ],
+  events: [
+    "Let's keep the vibe positive! I'm here to get you into an amazing event. 🎉",
+    "Save the energy for the event! How can I help you get tickets? 🎟️",
+    "I understand the frustration. Let me help you get sorted! 🎉",
+  ],
+  shop: [
+    "Retail therapy might be just what you need! Let me help you shop. 🛍️",
+    "I get it. Let me help you find what you're looking for instead. 🛒",
+    "Let's turn that frown around with some great finds! 🛍️",
+  ],
+  other: [
+    "I understand you may be frustrated. I'm here to help! 😊",
+    "Let's keep things friendly. What can I assist you with? 🙏",
+    "I'm on your side! Let me help you get what you need. 😊",
+  ],
+};
+
+// ── Category-aware intent responses ────────────────────
+
+function getMenuResponse(category: BusinessCategory): string {
+  switch (category) {
+    case 'restaurant': return 'You can check the menu once you select a restaurant. 🍽️';
+    case 'church':     return 'You can see available services once we get started. ⛪';
+    case 'gym':        return 'You can browse available classes once you start booking. 🏋️';
+    case 'cinema':     return "You'll see what's showing once we get started. 🎬";
+    case 'spa':        return 'You can browse our treatments once you start booking. 💆';
+    case 'events':     return 'You can browse available events once we get started. 🎉';
+    case 'shop':       return 'You can browse our catalog once you start your order. 🛍️';
+    default:           return 'You can browse options once we get started. 📋';
+  }
+}
+
+function getPricingResponse(category: BusinessCategory): string {
+  switch (category) {
+    case 'restaurant': return 'Deposit amounts vary by restaurant. Most are free to book! 💰';
+    case 'church':     return 'You can choose your own amount when you pay. ⛪';
+    case 'gym':        return 'Pricing varies by session type. Most require no deposit! 💰';
+    case 'cinema':     return 'Ticket prices depend on the showing and seat type. 🎬';
+    case 'spa':        return 'Pricing varies by service. Most require no deposit! 💰';
+    case 'events':     return 'Ticket prices vary by event. Let me help you find one! 🎟️';
+    case 'shop':       return "Pricing depends on the items. Let's start browsing! 🛍️";
+    default:           return 'Pricing varies. Let me help you find details! 💰';
+  }
+}
+
+function getHoursResponse(category: BusinessCategory): string {
+  switch (category) {
+    case 'restaurant': return "Opening hours depend on the restaurant. Let's pick one first! 🕐";
+    case 'church':     return "Service times vary. Let's get you the schedule! ⛪";
+    case 'gym':        return "Hours vary by location. Let's find one for you! 🕐";
+    case 'cinema':     return "Showtimes depend on the movie. Let's check! 🎬";
+    case 'spa':        return "Appointment times vary by treatment. Let's find a slot for you! 💆";
+    case 'events':     return "Event times vary. Let's find the one you want! 🕐";
+    case 'shop':       return "Store hours vary by location. Let's find one! 🕐";
+    default:           return "Hours vary. Let's get you the details! 🕐";
+  }
+}
+
+function getLocationResponse(category: BusinessCategory): string {
+  switch (category) {
+    case 'restaurant': return "I'll send directions after you book! Let's get you a table first. 📍";
+    case 'church':     return "I'll send directions after you're set up! 📍";
+    case 'gym':        return "I'll send directions after you book your session! 📍";
+    case 'cinema':     return "I'll send directions after you buy your tickets! 📍";
+    case 'spa':        return "I'll send directions after you book your appointment! 📍";
+    case 'events':     return "I'll send directions after you get your tickets! 📍";
+    case 'shop':       return "I'll send the location once you're ready! 📍";
+    default:           return "I'll send directions once we're set! 📍";
+  }
+}
+
+function getBookingResponse(category: BusinessCategory): string {
+  switch (category) {
+    case 'restaurant': return "Let's find you a table! 🍽️";
+    case 'church':     return "Let's get your offering set up! ⛪";
+    case 'gym':        return "Let's book you a session! 🏋️";
+    case 'cinema':     return "Let's get you some tickets! 🎬";
+    case 'spa':        return "Let's book your appointment! 💆";
+    case 'events':     return "Let's find you an event! 🎉";
+    case 'shop':       return "Let's start your order! 🛍️";
+    default:           return "Let's get you started! 📋";
+  }
+}
+
 // ── Free-text steps where we should NOT fire intents ───
 
 const FREE_TEXT_STEPS = new Set([
@@ -50,6 +192,10 @@ const FREE_TEXT_STEPS = new Set([
   'collect_email',
   'special_requests',
   'review_text',
+  'order_delivery_address',
+  'order_collect_name',
+  'order_collect_email',
+  'order_special_instructions',
 ]);
 
 // ── Intent rules (scored by specificity) ───────────────
@@ -74,7 +220,7 @@ const INTENT_RULES: IntentRule[] = [
     intent: 'booking',
     patterns: [/\b(book|reserve|table|reservation)\b/i],
     action: 'city_selection',
-    response: "Let's find you a table! 🍽️",
+    response: null, // now category-aware, set dynamically
   },
   {
     intent: 'help',
@@ -95,28 +241,34 @@ const INTENT_RULES: IntentRule[] = [
     response: null,
   },
   {
+    intent: 'order',
+    patterns: [/^(order|order food|place an order|i want to order|buy food|get food)$/i],
+    action: 'start_order',
+    response: null,
+  },
+  {
     intent: 'menu',
     patterns: [/\b(menu|food|what do you serve|dishes)\b/i],
     action: null,
-    response: 'You can check the menu once you select a restaurant. 🍽️',
+    response: null, // category-aware
   },
   {
     intent: 'pricing',
     patterns: [/\b(price|cost|how much|deposit|fee|expensive|cheap)\b/i],
     action: null,
-    response: 'Deposit amounts vary by restaurant. Most are free to book! 💰',
+    response: null, // category-aware
   },
   {
     intent: 'hours',
-    patterns: [/\b(hours|opening|closing|when are you open)\b/i],
+    patterns: [/\b(hours|opening|closing|when are you open|schedule|appointment\s*time|available\s*(times|slots))\b/i],
     action: null,
-    response: "Opening hours depend on the restaurant. Let's pick one first! 🕐",
+    response: null, // category-aware
   },
   {
     intent: 'location',
     patterns: [/\b(where|address|directions|map|location)\b/i],
     action: null,
-    response: "I'll send directions after you book! Let's get you a table first. 📍",
+    response: null, // category-aware
   },
   {
     intent: 'thanks',
@@ -131,7 +283,7 @@ const INTENT_RULES: IntentRule[] = [
 
 const THANKS_RESPONSES = [
   "You're welcome! 😊",
-  'Happy to help! 🍽️',
+  'Happy to help! 😊',
   'Anytime! 😊',
   'Glad I could help! 🙏',
 ];
@@ -161,18 +313,19 @@ const LEET_PATTERNS: Array<[RegExp, string]> = [
   [/c[\W_]*[uü]+[\W_]*nt/gi, 'cunt'],
 ];
 
-// ── Contextual help per step ────────────────────────────
+// ── Contextual help per step (neutral wording) ─────────
 
 const STEP_HELP: Record<string, string> = {
   greeting: "Send *Hi* to get started, or type *help* for options.",
-  quick_rebook: 'Tap a restaurant to rebook, or *Browse New* to explore.',
-  city_selection: 'Tap *Choose City* to pick where you\'d like to dine. 🏙️',
+  quick_rebook: 'Tap a previous option to rebook, or *Browse New* to explore.',
+  city_selection: 'Tap *Choose City* to pick your location. 🏙️',
   neighborhood_selection: 'Tap *Choose Area* to select a neighborhood. 📍',
-  restaurant_selection: 'Tap *Choose Restaurant* to pick where to eat. 🍽️',
-  date_selection: 'Tap *Choose Date* to select when you\'d like to dine. 📅',
+  restaurant_selection: 'Tap *Choose* to make your selection. 📋',
+  service_selection: 'Browse the available services and pick one to book. 📋',
+  date_selection: 'Tap *Choose Date* to select your preferred date. 📅',
   time_selection: 'Tap *Choose Time* to pick your preferred slot. 🕐',
   party_size: 'Type a number (e.g. *4*) or tap a button for guest count. 👥',
-  confirmation: 'Tap *Confirm* to book, *Add Request* for special requests, or *For Someone* to book for a friend. ✅',
+  confirmation: 'Tap *Confirm* to proceed, *Add Request* for special requests, or *For Someone* to book for a friend. ✅',
   special_requests: 'Tap a quick option or type your own request. 📝',
   book_for_other: 'Tap *Myself* or *Someone else*. 👤',
   collect_name: 'Type your full name (e.g. *Ade Johnson*). ✍️',
@@ -183,6 +336,21 @@ const STEP_HELP: Record<string, string> = {
   my_bookings: 'Tap a booking to manage it, or send *Hi* to make a new one.',
   modify_booking: 'Tap *Cancel*, *Change Date/Time*, or *Back*.',
   review_text: 'Type your comment or tap *No thanks* to skip. ✍️',
+  order_city_selection: 'Tap *Choose City* to pick your location. 🏙️',
+  order_restaurant_selection: 'Tap *Choose Restaurant* to pick where to order from. 🍽️',
+  order_menu_categories: 'Tap *Browse Menu* to pick a food category. 📋',
+  order_menu_items: 'Tap an item to add it to your cart. 🛒',
+  order_item_quantity: 'Tap a quantity or type a number (1-10). 🔢',
+  order_add_more: 'Tap *Add More* to browse, *View Cart* to review, or *Checkout*. 🛒',
+  order_cart_review: 'Tap *Checkout* to proceed, *Add More* to keep browsing, or *Clear Cart*. 🛒',
+  order_type_selection: 'Tap *Pickup* or *Delivery* to choose how to get your order. 🚗',
+  order_delivery_address: 'Type your full delivery address (at least 10 characters). 📍',
+  order_special_instructions: 'Type any special instructions or tap *Skip*. 📝',
+  order_confirm: 'Tap *Confirm* to place your order, *Edit Cart* to make changes, or *Cancel*. ✅',
+  order_collect_name: 'Type your full name (e.g. *Ade Johnson*). ✍️',
+  order_collect_email: 'Type your email or tap *Skip*. 📧',
+  order_payment: "Tap *I've Paid* after completing payment. 💳",
+  order_complete: 'Your order is confirmed! Send *Hi* to start a new session.',
 };
 
 // ── Service ─────────────────────────────────────────────
@@ -190,10 +358,11 @@ const STEP_HELP: Record<string, string> = {
 @Injectable()
 export class BotIntelligenceService {
   private readonly abuseMap = new Map<string, AbuseRecord>();
+  private readonly retryMap = new Map<string, ValidationRetryRecord>();
 
   // ── 1A. Intent Detection ──────────────────────────────
 
-  detectIntent(text: string, currentStep: string): IntentResult | null {
+  detectIntent(text: string, currentStep: string, category: BusinessCategory = 'restaurant'): IntentResult | null {
     // Don't fire intents on free-text input steps
     if (FREE_TEXT_STEPS.has(currentStep)) return null;
 
@@ -208,9 +377,22 @@ export class BotIntelligenceService {
       for (const pattern of rule.patterns) {
         if (pattern.test(normalized)) {
           let response = rule.response;
+
+          // Category-aware responses
           if (rule.intent === 'thanks') {
             response = THANKS_RESPONSES[Math.floor(Math.random() * THANKS_RESPONSES.length)];
+          } else if (rule.intent === 'menu') {
+            response = getMenuResponse(category);
+          } else if (rule.intent === 'pricing') {
+            response = getPricingResponse(category);
+          } else if (rule.intent === 'hours') {
+            response = getHoursResponse(category);
+          } else if (rule.intent === 'location') {
+            response = getLocationResponse(category);
+          } else if (rule.intent === 'booking') {
+            response = getBookingResponse(category);
           }
+
           return { intent: rule.intent, action: rule.action, response };
         }
       }
@@ -294,7 +476,7 @@ export class BotIntelligenceService {
     return { timeout: false, warn: false, message: '' };
   }
 
-  recordProfanity(phone: string): AbuseResult {
+  recordProfanity(phone: string, category: BusinessCategory = 'restaurant'): AbuseResult {
     this.pruneIfNeeded();
     const now = Date.now();
     let record = this.abuseMap.get(phone);
@@ -324,11 +506,10 @@ export class BotIntelligenceService {
       };
     }
 
-    return {
-      timeout: false,
-      warn: false,
-      message: "I understand you may be frustrated. I'm here to help you book a great dining experience. 😊",
-    };
+    // First offense — pick a witty category-aware response
+    const pool = PROFANITY_RESPONSES[category] || PROFANITY_RESPONSES.other;
+    const message = pool[Math.floor(Math.random() * pool.length)];
+    return { timeout: false, warn: false, message };
   }
 
   resetAbuse(phone: string): void {
@@ -351,38 +532,85 @@ export class BotIntelligenceService {
     }
   }
 
-  // ── 1D. Contextual Help ───────────────────────────────
+  // ── 1D. Validation Retry Tracking ─────────────────────
+
+  recordValidationFailure(phone: string, stepId: string): { showHelp: boolean } {
+    const key = `${phone}:${stepId}`;
+    const now = Date.now();
+    let record = this.retryMap.get(key);
+
+    if (!record || record.stepId !== stepId) {
+      record = { stepId, failureCount: 0, lastFailure: 0 };
+      this.retryMap.set(key, record);
+    }
+
+    // Reset if more than 5 minutes since last failure
+    if (now - record.lastFailure > 5 * 60 * 1000) {
+      record.failureCount = 0;
+    }
+
+    record.failureCount++;
+    record.lastFailure = now;
+
+    if (record.failureCount >= 3) {
+      record.failureCount = 0; // reset after showing help
+      return { showHelp: true };
+    }
+
+    return { showHelp: false };
+  }
+
+  resetValidationRetry(phone: string, stepId: string): void {
+    this.retryMap.delete(`${phone}:${stepId}`);
+  }
+
+  // Prune old retry records (called from pruneIfNeeded could be overkill, so standalone)
+  pruneRetryMap(): void {
+    if (this.retryMap.size <= 2000) return;
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+    for (const [key, record] of this.retryMap) {
+      if (record.lastFailure < fiveMinAgo) {
+        this.retryMap.delete(key);
+      }
+    }
+  }
+
+  // ── 1E. Contextual Help ───────────────────────────────
 
   getContextualHelp(currentStep: string): string {
     return STEP_HELP[currentStep] || "Type *help* to see what I can do, or send *Hi* to start over.";
   }
 
-  getHelpText(isStandalone: boolean, restaurantName?: string, alias?: string): string {
+  getHelpText(isStandalone: boolean, restaurantName?: string, alias?: string, category: BusinessCategory = 'restaurant'): string {
     const name = alias || 'NaijaDine Bot';
+    const cat = CATEGORY_LABELS[category] || CATEGORY_LABELS.restaurant;
+
     const lines = [
       `*${name}* can help you with:`,
       '',
-      '🍽️ *Book a table* — reserve at a restaurant',
-      '📋 *My bookings* — view & manage reservations',
-      '❌ *Cancel booking* — cancel a reservation',
-      '📍 *Location* — get directions after booking',
-      '💰 *Pricing* — learn about deposits',
+      `${cat.emoji} *${cat.action}* — start a new ${cat.noun}`,
+      `📋 *My ${cat.plural}* — view & manage ${cat.plural}`,
+      `❌ *Cancel ${cat.noun}* — cancel a ${cat.noun}`,
+      '📍 *Location* — get directions',
+      '💰 *Pricing* — learn about costs',
     ];
 
     if (!isStandalone) {
-      lines.push('🔍 *Browse restaurants* — explore by city');
+      lines.push('🔍 *Browse* — explore options by city');
     }
 
     lines.push('', '🔄 Send *Hi* to start over anytime.');
     return lines.join('\n');
   }
 
-  // ── 1E. Persona ───────────────────────────────────────
+  // ── 1F. Persona ───────────────────────────────────────
 
-  getPersonaGreeting(alias: string | null, restaurantName: string): string {
+  getPersonaGreeting(alias: string | null, restaurantName: string, category: BusinessCategory = 'restaurant'): string {
+    const cat = CATEGORY_LABELS[category] || CATEGORY_LABELS.restaurant;
+
     if (alias) {
-      return `Hi! I'm ${alias}, your booking assistant at ${restaurantName}. 🍽️ How can I help?`;
+      return `Hi! I'm ${alias}, your assistant at ${restaurantName}. ${cat.emoji} How can I help?`;
     }
-    return `Welcome to ${restaurantName}! 🍽️\n\nLet's book you a table.`;
+    return `Welcome to ${restaurantName}! ${cat.emoji}\n\nLet's get you started.`;
   }
 }
