@@ -198,11 +198,15 @@ function OnboardingWizard() {
         return;
       }
 
-      if (signUpData.user) {
+      if (signUpData.session) {
+        // Session established — move to restaurant details
         setUser(signUpData.user);
         setStep('details');
+      } else if (signUpData.user) {
+        // User created but email confirmation required
+        setError('We sent a confirmation link to your email. Please verify, then sign in.');
       } else {
-        setError('Check your email to confirm your account, then come back.');
+        setError('Something went wrong. Please try again.');
       }
     } catch {
       setError('Network error. Please try again.');

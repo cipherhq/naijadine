@@ -125,12 +125,15 @@ function SignupForm() {
         return;
       }
 
-      if (signUpData.user) {
-        // Pre-fill email in the profile step
+      if (signUpData.session) {
+        // Session established — move to profile step
         setEmail(signupEmail);
         setStep('profile');
+      } else if (signUpData.user) {
+        // User created but email confirmation required
+        setError('We sent a confirmation link to your email. Please verify, then sign in.');
       } else {
-        setError('Check your email to confirm your account, then come back.');
+        setError('Something went wrong. Please try again.');
       }
     } catch {
       setError('Network error. Please try again.');
