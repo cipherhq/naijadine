@@ -6,6 +6,12 @@
 export const APP_NAME = 'NaijaDine';
 export const APP_TAGLINE = 'Discover. Reserve. Dine.';
 export const BOOKING_REF_PREFIX = 'ND';
+export const ORDER_REF_PREFIX = 'FO';
+
+export const ORDER_DEFAULTS = {
+  maxItemQuantity: 10,
+  maxCartItems: 20,
+} as const;
 
 // ── Cities & Neighborhoods ──
 export const CITIES = {
