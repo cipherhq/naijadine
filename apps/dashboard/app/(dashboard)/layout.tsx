@@ -20,7 +20,7 @@ export default async function DashboardLayout({
     .from('restaurants')
     .select('*')
     .eq('owner_id', user.id)
-    .in('status', ['active', 'approved', 'pending_review'])
+    .in('status', ['active', 'approved', 'pending'])
     .single();
 
   if (!restaurant) redirect('/onboarding');

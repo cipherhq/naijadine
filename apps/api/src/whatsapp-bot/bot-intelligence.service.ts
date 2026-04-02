@@ -10,6 +10,23 @@ export type BusinessCategory =
   | 'spa'
   | 'events'
   | 'shop'
+  | 'barber'
+  | 'salon'
+  | 'beauty'
+  | 'laundry'
+  | 'car_wash'
+  | 'mechanic'
+  | 'hotel'
+  | 'clinic'
+  | 'tutor'
+  | 'photography'
+  | 'catering'
+  | 'cleaning'
+  | 'tailor'
+  | 'printing'
+  | 'logistics'
+  | 'bakery'
+  | 'coworking'
   | 'other';
 
 export type BotIntent =
@@ -62,14 +79,31 @@ interface ValidationRetryRecord {
 // ── Category labels & emoji ────────────────────────────
 
 const CATEGORY_LABELS: Record<BusinessCategory, { emoji: string; noun: string; action: string; plural: string }> = {
-  restaurant: { emoji: '🍽️', noun: 'reservation', action: 'Book', plural: 'reservations' },
-  church:     { emoji: '⛪', noun: 'payment', action: 'Pay', plural: 'payments' },
-  gym:        { emoji: '🏋️', noun: 'session', action: 'Book', plural: 'sessions' },
-  cinema:     { emoji: '🎬', noun: 'ticket', action: 'Buy', plural: 'tickets' },
-  spa:        { emoji: '💆', noun: 'appointment', action: 'Book', plural: 'appointments' },
-  events:     { emoji: '🎉', noun: 'ticket', action: 'Buy', plural: 'tickets' },
-  shop:       { emoji: '🛍️', noun: 'order', action: 'Order', plural: 'orders' },
-  other:      { emoji: '📋', noun: 'booking', action: 'Book', plural: 'bookings' },
+  restaurant:  { emoji: '🍽️', noun: 'reservation', action: 'Book', plural: 'reservations' },
+  church:      { emoji: '⛪', noun: 'payment', action: 'Pay', plural: 'payments' },
+  gym:         { emoji: '🏋️', noun: 'session', action: 'Book', plural: 'sessions' },
+  cinema:      { emoji: '🎬', noun: 'ticket', action: 'Buy', plural: 'tickets' },
+  spa:         { emoji: '💆', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  events:      { emoji: '🎉', noun: 'ticket', action: 'Buy', plural: 'tickets' },
+  shop:        { emoji: '🛍️', noun: 'order', action: 'Order', plural: 'orders' },
+  barber:      { emoji: '💈', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  salon:       { emoji: '💇', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  beauty:      { emoji: '💄', noun: 'order', action: 'Order', plural: 'orders' },
+  laundry:     { emoji: '👔', noun: 'order', action: 'Order', plural: 'orders' },
+  car_wash:    { emoji: '🚗', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  mechanic:    { emoji: '🔧', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  hotel:       { emoji: '🏨', noun: 'booking', action: 'Book', plural: 'bookings' },
+  clinic:      { emoji: '🏥', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  tutor:       { emoji: '📚', noun: 'session', action: 'Book', plural: 'sessions' },
+  photography: { emoji: '📸', noun: 'session', action: 'Book', plural: 'sessions' },
+  catering:    { emoji: '🍱', noun: 'order', action: 'Order', plural: 'orders' },
+  cleaning:    { emoji: '🧹', noun: 'appointment', action: 'Book', plural: 'appointments' },
+  tailor:      { emoji: '🪡', noun: 'order', action: 'Order', plural: 'orders' },
+  printing:    { emoji: '🖨️', noun: 'order', action: 'Order', plural: 'orders' },
+  logistics:   { emoji: '🚚', noun: 'order', action: 'Order', plural: 'orders' },
+  bakery:      { emoji: '🎂', noun: 'order', action: 'Order', plural: 'orders' },
+  coworking:   { emoji: '🏢', noun: 'booking', action: 'Book', plural: 'bookings' },
+  other:       { emoji: '📋', noun: 'booking', action: 'Book', plural: 'bookings' },
 };
 
 // ── Category-aware profanity responses (first offense) ─
@@ -109,6 +143,91 @@ const PROFANITY_RESPONSES: Record<BusinessCategory, string[]> = {
     "Retail therapy might be just what you need! Let me help you shop. 🛍️",
     "I get it. Let me help you find what you're looking for instead. 🛒",
     "Let's turn that frown around with some great finds! 🛍️",
+  ],
+  barber: [
+    "Easy there! Let me help you book a fresh cut instead. 💈",
+    "Save that energy for the barber chair! How can I help? 💈",
+    "Let's get you looking sharp! What service do you need? 💈",
+  ],
+  salon: [
+    "Let's channel that into a glow-up! How can I help you book? 💇",
+    "Deep breaths! Let me help you book your hair appointment. 💇",
+    "Let's get you looking fabulous instead! What do you need? 💇",
+  ],
+  beauty: [
+    "Retail therapy might help! Let me help you find what you need. 💄",
+    "Let's focus on finding you something beautiful instead! 💄",
+    "I'm here to help you shop. What can I find for you? 💄",
+  ],
+  laundry: [
+    "Let's clean up this conversation! How can I help with your laundry? 👔",
+    "Fresh start? Let me help you get your clothes sorted. 👔",
+    "Let's keep things fresh! What laundry service do you need? 👔",
+  ],
+  car_wash: [
+    "Let's wash away that frustration! How can I help? 🚗",
+    "Time for a clean start! Let me help you book a wash. 🚗",
+    "Let's get your ride sparkling instead! What do you need? 🚗",
+  ],
+  mechanic: [
+    "Let's fix the real problem! How can I help with your car? 🔧",
+    "Save that energy — let me help you book a service. 🔧",
+    "I'm here to help get things running smooth! What do you need? 🔧",
+  ],
+  hotel: [
+    "Sounds like you need a good rest! Let me help you book a room. 🏨",
+    "Let's find you a comfortable stay instead! 🏨",
+    "I'm here to help you relax. What room are you looking for? 🏨",
+  ],
+  clinic: [
+    "I want to help you feel better! Let me book your appointment. 🏥",
+    "Let's focus on your health. How can I help? 🏥",
+    "I'm here to help! What medical service do you need? 🏥",
+  ],
+  tutor: [
+    "Let's channel that into learning! How can I help you book? 📚",
+    "Knowledge is power! Let me help you book a session. 📚",
+    "Let's focus on growth! What subject do you need help with? 📚",
+  ],
+  photography: [
+    "Let's capture something positive! How can I help? 📸",
+    "Say cheese, not that! Let me help you book a session. 📸",
+    "Let's focus on the big picture! What do you need? 📸",
+  ],
+  catering: [
+    "Let's feed the good vibes! How can I help with your order? 🍱",
+    "Good food fixes everything! Let me help you get sorted. 🍱",
+    "Let's plan something delicious instead! What do you need? 🍱",
+  ],
+  cleaning: [
+    "Let's clean up this conversation! How can I help? 🧹",
+    "Fresh start? Let me help you book a cleaning. 🧹",
+    "I'm here to help things sparkle! What do you need? 🧹",
+  ],
+  tailor: [
+    "Let's stitch things together! How can I help with your order? 🪡",
+    "Let me help you look sharp instead! What do you need? 🪡",
+    "I'm here to help you get fitted! What are you looking for? 🪡",
+  ],
+  printing: [
+    "Let's make a good impression! How can I help? 🖨️",
+    "Let me help you get your prints sorted instead. 🖨️",
+    "I'm here to help! What do you need printed? 🖨️",
+  ],
+  logistics: [
+    "Let's deliver something positive! How can I help? 🚚",
+    "I'm here to get things moving! What do you need? 🚚",
+    "Let me help you with your delivery instead. 🚚",
+  ],
+  bakery: [
+    "Have something sweet instead! Let me help you order. 🎂",
+    "Sugar fixes everything! What can I get for you? 🎂",
+    "Let's bake this right! How can I help? 🎂",
+  ],
+  coworking: [
+    "Let's find you a productive space! How can I help? 🏢",
+    "Channel that energy into work! Let me book you a spot. 🏢",
+    "I'm here to help you find the right space. What do you need? 🏢",
   ],
   other: [
     "I understand you may be frustrated. I'm here to help! 😊",

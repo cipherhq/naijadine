@@ -328,8 +328,8 @@ export class BotService {
         }
 
         // Determine entry step based on category
-        const PURCHASE_CATEGORIES = ['church', 'cinema', 'events', 'shop'];
-        const SERVICE_CATEGORIES = ['spa', 'gym'];
+        const PURCHASE_CATEGORIES = ['church', 'cinema', 'events', 'shop', 'beauty', 'laundry', 'catering', 'tailor', 'printing', 'logistics', 'bakery'];
+        const SERVICE_CATEGORIES = ['spa', 'gym', 'barber', 'salon', 'car_wash', 'mechanic', 'hotel', 'clinic', 'tutor', 'photography', 'cleaning', 'coworking'];
 
         let entryStep: string;
         if (PURCHASE_CATEGORIES.includes(category)) {
@@ -945,6 +945,23 @@ export class BotService {
       return;
     }
 
+    // Service category labels for UI text
+    const serviceLabels: Record<string, { browse: string; body: string; selectTitle: string }> = {
+      spa: { browse: 'Browse Treatments', body: 'Choose a treatment type:', selectTitle: 'Select Treatment' },
+      gym: { browse: 'Browse Classes', body: 'Choose a class type:', selectTitle: 'Select Class' },
+      barber: { browse: 'Browse Services', body: 'Choose a service:', selectTitle: 'Select Service' },
+      salon: { browse: 'Browse Services', body: 'Choose a service:', selectTitle: 'Select Service' },
+      car_wash: { browse: 'Browse Packages', body: 'Choose a wash package:', selectTitle: 'Select Package' },
+      mechanic: { browse: 'Browse Services', body: 'What do you need?', selectTitle: 'Select Service' },
+      hotel: { browse: 'Browse Rooms', body: 'Choose a room type:', selectTitle: 'Select Room' },
+      clinic: { browse: 'Browse Services', body: 'Choose a service:', selectTitle: 'Select Service' },
+      tutor: { browse: 'Browse Subjects', body: 'Choose a subject:', selectTitle: 'Select Session' },
+      photography: { browse: 'Browse Packages', body: 'Choose a package:', selectTitle: 'Select Package' },
+      cleaning: { browse: 'Browse Services', body: 'Choose a cleaning type:', selectTitle: 'Select Service' },
+      coworking: { browse: 'Browse Spaces', body: 'Choose a space type:', selectTitle: 'Select Space' },
+    };
+    const svcLabels = serviceLabels[category] || { browse: 'Browse Services', body: 'Choose a service:', selectTitle: 'Select' };
+
     // Phase 1: Show service categories or items within a category
     if (!input || input.startsWith('cat_')) {
       if (!input) {
@@ -963,12 +980,11 @@ export class BotService {
           return;
         }
 
-        const browseLabel = category === 'spa' ? 'Browse Treatments' : 'Browse Classes';
         await this.gupshupService.sendList({
           to: from,
-          title: browseLabel,
-          body: `Choose a ${category === 'spa' ? 'treatment type' : 'class type'}:`,
-          buttonLabel: browseLabel,
+          title: svcLabels.browse,
+          body: svcLabels.body,
+          buttonLabel: svcLabels.browse,
           items: categories.map(c => ({
             title: c.name,
             description: c.description || '',
@@ -997,12 +1013,10 @@ export class BotService {
       session.session_data.order_selected_category_id = categoryId;
       await this.updateSession(session.id, 'service_selection', session.session_data);
 
-      const selectLabel = category === 'spa' ? 'Select Treatment' : 'Select Class';
-      const noun = category === 'spa' ? 'treatment' : 'class';
       await this.gupshupService.sendList({
         to: from,
-        title: selectLabel,
-        body: `Pick a ${noun}:`,
+        title: svcLabels.selectTitle,
+        body: `Pick an option:`,
         buttonLabel: 'Select',
         items: items.map(i => ({
           title: i.name,
@@ -1142,9 +1156,10 @@ export class BotService {
   }
 
   private async handlePartySize(session: BotSession, from: string, input: string): Promise<void> {
-    // Auto-skip party size for spa/gym — always 1 person
+    // Auto-skip party size for service categories — always 1 person
     const category = this.getSessionCategory(session);
-    if (category === 'spa' || category === 'gym') {
+    const SERVICE_CATS = ['spa', 'gym', 'barber', 'salon', 'car_wash', 'mechanic', 'hotel', 'clinic', 'tutor', 'photography', 'cleaning', 'coworking'];
+    if (SERVICE_CATS.includes(category)) {
       session.session_data.party_size = 1;
       await this.updateSession(session.id, 'confirmation', session.session_data);
       await this.handleConfirmation(session, from, '');
@@ -1199,7 +1214,8 @@ export class BotService {
   private async handleConfirmation(session: BotSession, from: string, input: string): Promise<void> {
     const d = session.session_data;
     const confirmCategory = this.getSessionCategory(session);
-    const isSpaGym = confirmCategory === 'spa' || confirmCategory === 'gym';
+    const SERVICE_CATS = ['spa', 'gym', 'barber', 'salon', 'car_wash', 'mechanic', 'hotel', 'clinic', 'tutor', 'photography', 'cleaning', 'coworking'];
+    const isSpaGym = SERVICE_CATS.includes(confirmCategory);
 
     if (!input) {
       const dateLabel = new Date(d.date! + 'T00:00').toLocaleDateString('en-NG', {
@@ -2605,9 +2621,11 @@ export class BotService {
         return;
       }
 
-      const cartCount = (session.session_data.cart || []).reduce((sum, i) => sum + i.quantity, 0);
+      const cart = session.session_data.cart || [];
+      const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
+      const cartTotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
       const bodyText = cartCount > 0
-        ? `${labels.menuBody} (🛒 ${cartCount} ${labels.itemLabel}${cartCount !== 1 ? 's' : ''} in cart)`
+        ? `${labels.menuBody}\n\n${labels.cartSummary(cartCount, cartTotal)}`
         : labels.menuBody;
 
       await this.gupshupService.sendList({
@@ -2674,11 +2692,12 @@ export class BotService {
         return;
       }
 
+      const itemLabels = this.getOrderFlowLabels(session);
       await this.gupshupService.sendList({
         to: from,
         title: session.session_data.order_selected_category_name || 'Menu Items',
-        body: `Select an item to add to your cart:`,
-        buttonLabel: 'Choose Item',
+        body: itemLabels.selectItemBody,
+        buttonLabel: itemLabels.chooseItemBtn,
         items: items.map((item) => ({
           title: item.name,
           description: `${formatNaira(item.price)}${item.description ? ' — ' + item.description.slice(0, 50) : ''}`,
@@ -2715,6 +2734,24 @@ export class BotService {
 
   private async handleOrderItemQuantity(session: BotSession, from: string, input: string): Promise<void> {
     const d = session.session_data;
+    const qtyLabels = this.getOrderFlowLabels(session);
+
+    // For categories that skip quantity (e.g. church giving), auto-set to 1
+    if (qtyLabels.skipQuantity) {
+      if (!d.cart) d.cart = [];
+      // For church, don't merge — each selection is a separate offering
+      d.cart.push({
+        item_id: d.order_selected_item_id!,
+        name: d.order_selected_item_name!,
+        price: d.order_selected_item_price!,
+        quantity: 1,
+      });
+      this.intelligence.resetAbuse(from);
+      await this.updateSession(session.id, 'order_add_more', d);
+      await this.sendText(from, qtyLabels.addedText(d.order_selected_item_name!));
+      await this.handleOrderAddMore(session, from, '');
+      return;
+    }
 
     if (!input) {
       await this.gupshupService.sendButtons({
@@ -2742,7 +2779,7 @@ export class BotService {
     // Check cart limit
     const totalItems = d.cart.reduce((sum, i) => sum + i.quantity, 0);
     if (totalItems + qty > ORDER_DEFAULTS.maxCartItems) {
-      await this.sendText(from, `Your cart can hold up to ${ORDER_DEFAULTS.maxCartItems} items. Please checkout or remove items first.`);
+      await this.sendText(from, `Maximum ${ORDER_DEFAULTS.maxCartItems} items. Please proceed or remove items first.`);
       return;
     }
 
@@ -2761,7 +2798,7 @@ export class BotService {
 
     this.intelligence.resetAbuse(from);
     await this.updateSession(session.id, 'order_add_more', d);
-    await this.sendText(from, `Added ${qty}x *${d.order_selected_item_name}* to cart ✓`);
+    await this.sendText(from, qtyLabels.addedText(d.order_selected_item_name!, qty));
     await this.handleOrderAddMore(session, from, '');
   }
 
@@ -2769,6 +2806,7 @@ export class BotService {
 
   private async handleOrderAddMore(session: BotSession, from: string, input: string): Promise<void> {
     const cart = session.session_data.cart || [];
+    const addLabels = this.getOrderFlowLabels(session);
 
     if (!input) {
       const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
@@ -2776,11 +2814,11 @@ export class BotService {
 
       await this.gupshupService.sendButtons({
         to: from,
-        body: `🛒 Cart: ${cartCount} item${cartCount !== 1 ? 's' : ''} — ${formatNaira(cartTotal)}`,
+        body: addLabels.cartSummary(cartCount, cartTotal),
         buttons: [
           { id: 'add_more', title: '➕ Add More' },
-          { id: 'view_cart', title: '🛒 View Cart' },
-          { id: 'checkout', title: '✅ Checkout' },
+          { id: 'view_cart', title: addLabels.viewCartBtn },
+          { id: 'checkout', title: addLabels.checkoutBtn },
         ],
       });
       return;
@@ -2802,7 +2840,7 @@ export class BotService {
 
     if (response === 'checkout') {
       if (cart.length === 0) {
-        await this.sendText(from, 'Your cart is empty! Add some items first.');
+        await this.sendText(from, addLabels.emptyText);
         await this.updateStep(session.id, 'order_menu_categories');
         await this.handleOrderMenuCategories(session, from, '');
         return;
@@ -2814,39 +2852,42 @@ export class BotService {
 
     const abuse = await this.handleValidationFailure(from, 'order_add_more', session);
     if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
-    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Add More*, *View Cart*, or *Checkout*.');
+    await this.sendText(from, abuse.warn ? abuse.message : addLabels.hintBtns);
   }
 
   // ── Order: Cart Review ────────────────────────────────
 
   private async handleOrderCartReview(session: BotSession, from: string, input: string): Promise<void> {
     const cart = session.session_data.cart || [];
+    const cartLabels = this.getOrderFlowLabels(session);
 
     if (!input) {
       if (cart.length === 0) {
-        await this.sendText(from, 'Your cart is empty! Let\'s add some items.');
+        await this.sendText(from, cartLabels.emptyText);
         await this.updateStep(session.id, 'order_menu_categories');
         await this.handleOrderMenuCategories(session, from, '');
         return;
       }
 
-      const lines = ['🛒 *Your Cart*', ''];
+      const lines = [cartLabels.cartHeader, ''];
       let subtotal = 0;
       for (const item of cart) {
         const lineTotal = item.price * item.quantity;
         subtotal += lineTotal;
-        lines.push(`${item.quantity}x ${item.name} — ${formatNaira(lineTotal)}`);
+        lines.push(cartLabels.skipQuantity
+          ? `${item.name} — ${formatNaira(lineTotal)}`
+          : `${item.quantity}x ${item.name} — ${formatNaira(lineTotal)}`);
       }
-      lines.push('', `*Subtotal: ${formatNaira(subtotal)}*`);
+      lines.push('', `*Total: ${formatNaira(subtotal)}*`);
 
       await this.sendText(from, lines.join('\n'));
       await this.gupshupService.sendButtons({
         to: from,
         body: 'What would you like to do?',
         buttons: [
-          { id: 'checkout', title: '✅ Checkout' },
+          { id: 'checkout', title: cartLabels.checkoutBtn },
           { id: 'add_more', title: '➕ Add More' },
-          { id: 'clear_cart', title: '🗑️ Clear Cart' },
+          { id: 'clear_cart', title: cartLabels.clearCartBtn },
         ],
       });
       return;
@@ -2856,7 +2897,7 @@ export class BotService {
 
     if (response === 'checkout') {
       if (cart.length === 0) {
-        await this.sendText(from, 'Your cart is empty! Add some items first.');
+        await this.sendText(from, cartLabels.emptyText);
         await this.updateStep(session.id, 'order_menu_categories');
         await this.handleOrderMenuCategories(session, from, '');
         return;
@@ -2875,14 +2916,14 @@ export class BotService {
     if (response === 'clear_cart') {
       session.session_data.cart = [];
       await this.updateSession(session.id, 'order_menu_categories', session.session_data);
-      await this.sendText(from, '🗑️ Cart cleared! Let\'s start fresh.');
+      await this.sendText(from, cartLabels.clearedText);
       await this.handleOrderMenuCategories(session, from, '');
       return;
     }
 
     const abuse = await this.handleValidationFailure(from, 'order_cart_review', session);
     if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
-    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Checkout*, *Add More*, or *Clear Cart*.');
+    await this.sendText(from, abuse.warn ? abuse.message : cartLabels.hintCartBtns);
   }
 
   // ── Order: Type Selection (pickup/delivery) ───────────
@@ -3009,10 +3050,17 @@ export class BotService {
       d.order_total = total;
       await this.updateSession(session.id, 'order_confirm', d);
 
+      const catEmojiMap: Record<string, string> = {
+        restaurant: '🍽️', church: '⛪', spa: '💆', gym: '💪', cinema: '🎬', events: '🎫', shop: '🛍️',
+        barber: '💈', salon: '💇', beauty: '💄', laundry: '👔', car_wash: '🚗', mechanic: '🔧',
+        hotel: '🏨', clinic: '🏥', tutor: '📚', photography: '📸', catering: '🍱', cleaning: '🧹',
+        tailor: '🪡', printing: '🖨️', logistics: '🚚', bakery: '🎂', coworking: '🏢',
+      };
+      const catEmoji = catEmojiMap[this.getSessionCategory(session)] || '📋';
       const lines = [
         `📋 *${confirmLabels.summaryLabel}*`,
         '',
-        `🍽️ ${d.order_restaurant_name}`,
+        `${catEmoji} ${d.order_restaurant_name}`,
       ];
 
       // Only show delivery/pickup line for categories that have it
@@ -3022,13 +3070,17 @@ export class BotService {
       lines.push('');
 
       for (const item of cart) {
-        lines.push(`${item.quantity}x ${item.name} — ${formatNaira(item.price * item.quantity)}`);
+        lines.push(confirmLabels.skipQuantity
+          ? `${item.name} — ${formatNaira(item.price * item.quantity)}`
+          : `${item.quantity}x ${item.name} — ${formatNaira(item.price * item.quantity)}`);
       }
 
       lines.push('');
-      lines.push(`Subtotal: ${formatNaira(subtotal)}`);
-      if (deliveryFeeAmount > 0) {
-        lines.push(`Delivery: ${formatNaira(deliveryFeeAmount)}`);
+      if (confirmLabels.deliverySection) {
+        lines.push(`Subtotal: ${formatNaira(subtotal)}`);
+        if (deliveryFeeAmount > 0) {
+          lines.push(`Delivery: ${formatNaira(deliveryFeeAmount)}`);
+        }
       }
       lines.push(`*Total: ${formatNaira(total)}*`);
 
@@ -3045,7 +3097,7 @@ export class BotService {
         body: `Confirm this ${confirmLabels.itemLabel}?`,
         buttons: [
           { id: 'confirm_order', title: '✅ Confirm' },
-          { id: 'edit_cart', title: '✏️ Edit Cart' },
+          { id: 'edit_cart', title: confirmLabels.editCartBtn },
           { id: 'cancel_order', title: '❌ Cancel' },
         ],
       });
@@ -3055,7 +3107,7 @@ export class BotService {
     const response = input.toLowerCase();
 
     if (response === 'cancel_order' || response === 'cancel') {
-      await this.sendText(from, 'Order cancelled. Send *Hi* to start again anytime!');
+      await this.sendText(from, confirmLabels.cancelText);
       await this.deactivateSession(session.id);
       return;
     }
@@ -3073,14 +3125,15 @@ export class BotService {
 
     const abuse = await this.handleValidationFailure(from, 'order_confirm', session);
     if (abuse.timeout) { await this.deactivateSession(session.id); await this.sendText(from, abuse.message); return; }
-    await this.sendText(from, abuse.warn ? abuse.message : 'Please tap *Confirm*, *Edit Cart*, or *Cancel*.');
+    await this.sendText(from, abuse.warn ? abuse.message : confirmLabels.hintConfirmBtns);
   }
 
   // ── Order: Collect Name ───────────────────────────────
 
   private async handleOrderCollectName(session: BotSession, from: string, input: string): Promise<void> {
     if (!input) {
-      await this.sendText(from, 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):');
+      const nameLabels = this.getOrderFlowLabels(session);
+      await this.sendText(from, nameLabels.collectNameText);
       return;
     }
 
@@ -3442,15 +3495,11 @@ export class BotService {
 
       if (verified) {
         const d = session.session_data;
-        await this.sendText(from, [
-          `✅ *Payment Confirmed!*`,
-          ``,
-          `Your order at *${d.order_restaurant_name}* is confirmed!`,
-          `📦 ${d.order_type === 'delivery' ? '🚗 Delivery' : '🏃 Pickup'}`,
-          `🔑 Ref: *${d.order_reference_code}*`,
-          ``,
-          `We'll notify you when it's ready. 🎉`,
-        ].join('\n'));
+        const payLabels = this.getOrderFlowLabels(session);
+        await this.sendText(from, payLabels.paymentConfirmText(
+          d.order_restaurant_name || 'Business',
+          d.order_reference_code || '',
+        ));
 
         await this.updateSession(session.id, 'order_complete', d);
         await this.deactivateSession(session.id);
@@ -3472,7 +3521,8 @@ export class BotService {
           .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'customer' })
           .eq('id', session.session_data.order_id);
       }
-      await this.sendText(from, 'Order cancelled. Send *Hi* to start again anytime!');
+      const cancelLabels = this.getOrderFlowLabels(session);
+      await this.sendText(from, cancelLabels.cancelText);
       await this.deactivateSession(session.id);
     } else {
       await this.gupshupService.sendButtons({
@@ -3574,30 +3624,258 @@ export class BotService {
     const category = this.getSessionCategory(session);
     switch (category) {
       case 'church':
-        return { menuTitle: 'Giving Options', browseBtn: 'Browse Options', menuBody: 'Choose a giving category:',
-                 itemLabel: 'offering', noItems: 'No giving options available right now.',
-                 orderType: 'none' as const, specialInstr: false,
-                 summaryLabel: 'Offering Summary', deliverySection: false };
+        return {
+          menuTitle: 'Giving Options', browseBtn: 'Browse Options', menuBody: 'Choose a giving category:',
+          itemLabel: 'offering', noItems: 'No giving options available right now.',
+          orderType: 'none' as const, specialInstr: false,
+          summaryLabel: 'Offering Summary', deliverySection: false,
+          // Cart & flow labels
+          selectItemBody: 'Select an offering amount:', chooseItemBtn: 'Choose',
+          skipQuantity: true, // always 1 for church — no "how many tithes?"
+          addedText: (name: string, _qty?: number) => `🙏 *${name}* selected ✓`,
+          cartSummary: (count: number, total: number) => `🙏 ${count} offering${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🙏 *Your Offerings*',
+          viewCartBtn: '🙏 View Offerings', checkoutBtn: '✅ Proceed',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit',
+          emptyText: 'No offerings selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your offering, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Offering Received!*\n\nThank you for your giving to *${name}*.\n🔑 Ref: *${ref}*\n\nGod bless you! 🙏`,
+          hintBtns: 'Please tap *Add More*, *View Offerings*, or *Proceed*.',
+          hintCartBtns: 'Please tap *Proceed*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit*, or *Cancel*.',
+        };
       case 'cinema':
-        return { menuTitle: 'Now Showing', browseBtn: 'See Movies', menuBody: 'What would you like to see?',
-                 itemLabel: 'ticket', noItems: 'No movies showing right now.',
-                 orderType: 'none' as const, specialInstr: false,
-                 summaryLabel: 'Ticket Summary', deliverySection: false };
+        return {
+          menuTitle: 'Now Showing', browseBtn: 'See Movies', menuBody: 'What would you like to see?',
+          itemLabel: 'ticket', noItems: 'No movies showing right now.',
+          orderType: 'none' as const, specialInstr: false,
+          summaryLabel: 'Ticket Summary', deliverySection: false,
+          selectItemBody: 'Select a ticket type:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* ✓`,
+          cartSummary: (count: number, total: number) => `🎬 ${count} ticket${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🎬 *Your Tickets*',
+          viewCartBtn: '🎬 View Tickets', checkoutBtn: '✅ Proceed',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit',
+          emptyText: 'No tickets selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your booking, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Tickets Confirmed!*\n\nYour tickets at *${name}* are booked.\n🔑 Ref: *${ref}*\n\nEnjoy the show! 🎬`,
+          hintBtns: 'Please tap *Add More*, *View Tickets*, or *Proceed*.',
+          hintCartBtns: 'Please tap *Proceed*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit*, or *Cancel*.',
+        };
       case 'events':
-        return { menuTitle: 'Upcoming Events', browseBtn: 'Browse Events', menuBody: 'Browse upcoming events:',
-                 itemLabel: 'ticket', noItems: 'No events available right now.',
-                 orderType: 'none' as const, specialInstr: false,
-                 summaryLabel: 'Ticket Summary', deliverySection: false };
+        return {
+          menuTitle: 'Upcoming Events', browseBtn: 'Browse Events', menuBody: 'Browse upcoming events:',
+          itemLabel: 'ticket', noItems: 'No events available right now.',
+          orderType: 'none' as const, specialInstr: false,
+          summaryLabel: 'Ticket Summary', deliverySection: false,
+          selectItemBody: 'Select a ticket type:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* ✓`,
+          cartSummary: (count: number, total: number) => `🎫 ${count} ticket${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🎫 *Your Tickets*',
+          viewCartBtn: '🎫 View Tickets', checkoutBtn: '✅ Proceed',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit',
+          emptyText: 'No tickets selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your booking, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Tickets Confirmed!*\n\nYour tickets for *${name}* are booked.\n🔑 Ref: *${ref}*\n\nSee you there! 🎉`,
+          hintBtns: 'Please tap *Add More*, *View Tickets*, or *Proceed*.',
+          hintCartBtns: 'Please tap *Proceed*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit*, or *Cancel*.',
+        };
       case 'shop':
-        return { menuTitle: 'Product Categories', browseBtn: 'Browse Products', menuBody: 'Browse our products:',
-                 itemLabel: 'item', noItems: 'No products available right now.',
-                 orderType: 'show' as const, specialInstr: true,
-                 summaryLabel: 'Order Summary', deliverySection: true };
+        return {
+          menuTitle: 'Product Categories', browseBtn: 'Browse Products', menuBody: 'Browse our products:',
+          itemLabel: 'item', noItems: 'No products available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select an item to add:', chooseItemBtn: 'Choose Item',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to cart ✓`,
+          cartSummary: (count: number, total: number) => `🛒 Cart: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🛒 *Your Cart*',
+          viewCartBtn: '🛒 View Cart', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear Cart', editCartBtn: '✏️ Edit Cart',
+          emptyText: 'Your cart is empty! Let\'s add some items.', clearedText: '🗑️ Cart cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 🎉`,
+          hintBtns: 'Please tap *Add More*, *View Cart*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear Cart*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Cart*, or *Cancel*.',
+        };
+      case 'beauty':
+        return {
+          menuTitle: 'Beauty Products', browseBtn: 'Browse Products', menuBody: 'Browse our beauty products:',
+          itemLabel: 'item', noItems: 'No products available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select a product:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to cart ✓`,
+          cartSummary: (count: number, total: number) => `💄 Cart: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '💄 *Your Cart*',
+          viewCartBtn: '💄 View Cart', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear Cart', editCartBtn: '✏️ Edit Cart',
+          emptyText: 'Your cart is empty! Let\'s add some items.', clearedText: '🗑️ Cart cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 💄`,
+          hintBtns: 'Please tap *Add More*, *View Cart*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear Cart*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Cart*, or *Cancel*.',
+        };
+      case 'laundry':
+        return {
+          menuTitle: 'Laundry Services', browseBtn: 'Browse Services', menuBody: 'Choose a laundry service:',
+          itemLabel: 'item', noItems: 'No services available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select a service:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to order ✓`,
+          cartSummary: (count: number, total: number) => `👔 Order: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '👔 *Your Order*',
+          viewCartBtn: '👔 View Order', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit Order',
+          emptyText: 'No items selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour laundry order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 👔`,
+          hintBtns: 'Please tap *Add More*, *View Order*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Order*, or *Cancel*.',
+        };
+      case 'catering':
+        return {
+          menuTitle: 'Catering Menu', browseBtn: 'Browse Menu', menuBody: 'Browse our catering options:',
+          itemLabel: 'item', noItems: 'No catering options available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select an item:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to order ✓`,
+          cartSummary: (count: number, total: number) => `🍱 Order: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🍱 *Your Order*',
+          viewCartBtn: '🍱 View Order', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit Order',
+          emptyText: 'No items selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour catering order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll be in touch! 🍱`,
+          hintBtns: 'Please tap *Add More*, *View Order*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Order*, or *Cancel*.',
+        };
+      case 'tailor':
+        return {
+          menuTitle: 'Our Styles', browseBtn: 'Browse Styles', menuBody: 'Browse our styles:',
+          itemLabel: 'item', noItems: 'No styles available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select a style:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to order ✓`,
+          cartSummary: (count: number, total: number) => `🪡 Order: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🪡 *Your Order*',
+          viewCartBtn: '🪡 View Order', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit Order',
+          emptyText: 'No items selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 🪡`,
+          hintBtns: 'Please tap *Add More*, *View Order*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Order*, or *Cancel*.',
+        };
+      case 'printing':
+        return {
+          menuTitle: 'Print Services', browseBtn: 'Browse Services', menuBody: 'Browse our print services:',
+          itemLabel: 'item', noItems: 'No print services available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select a product:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to order ✓`,
+          cartSummary: (count: number, total: number) => `🖨️ Order: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🖨️ *Your Order*',
+          viewCartBtn: '🖨️ View Order', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit Order',
+          emptyText: 'No items selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour print order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 🖨️`,
+          hintBtns: 'Please tap *Add More*, *View Order*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Order*, or *Cancel*.',
+        };
+      case 'logistics':
+        return {
+          menuTitle: 'Delivery Options', browseBtn: 'Browse Packages', menuBody: 'Choose a delivery option:',
+          itemLabel: 'item', noItems: 'No delivery options available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select an option:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to order ✓`,
+          cartSummary: (count: number, total: number) => `🚚 Order: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🚚 *Your Order*',
+          viewCartBtn: '🚚 View Order', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit Order',
+          emptyText: 'No items selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour dispatch at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll keep you updated. 🚚`,
+          hintBtns: 'Please tap *Add More*, *View Order*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Order*, or *Cancel*.',
+        };
+      case 'bakery':
+        return {
+          menuTitle: 'Our Bakery', browseBtn: 'Browse Menu', menuBody: 'Browse our baked goods:',
+          itemLabel: 'item', noItems: 'No items available right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select an item:', chooseItemBtn: 'Choose',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to order ✓`,
+          cartSummary: (count: number, total: number) => `🎂 Order: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🎂 *Your Order*',
+          viewCartBtn: '🎂 View Order', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear All', editCartBtn: '✏️ Edit Order',
+          emptyText: 'No items selected yet.', clearedText: '🗑️ Cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Order Confirmed!*\n\nYour order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 🎂`,
+          hintBtns: 'Please tap *Add More*, *View Order*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear All*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Order*, or *Cancel*.',
+        };
       default: // restaurant (food ordering)
-        return { menuTitle: 'Menu Categories', browseBtn: 'Browse Menu', menuBody: 'Browse the menu:',
-                 itemLabel: 'item', noItems: 'No menu items available at this restaurant right now.',
-                 orderType: 'show' as const, specialInstr: true,
-                 summaryLabel: 'Order Summary', deliverySection: true };
+        return {
+          menuTitle: 'Menu Categories', browseBtn: 'Browse Menu', menuBody: 'Browse the menu:',
+          itemLabel: 'item', noItems: 'No menu items available at this restaurant right now.',
+          orderType: 'show' as const, specialInstr: true,
+          summaryLabel: 'Order Summary', deliverySection: true,
+          selectItemBody: 'Select an item to add:', chooseItemBtn: 'Choose Item',
+          skipQuantity: false,
+          addedText: (name: string, qty?: number) => `Added ${qty || 1}x *${name}* to cart ✓`,
+          cartSummary: (count: number, total: number) => `🛒 Cart: ${count} item${count !== 1 ? 's' : ''} — ${formatNaira(total)}`,
+          cartHeader: '🛒 *Your Cart*',
+          viewCartBtn: '🛒 View Cart', checkoutBtn: '✅ Checkout',
+          clearCartBtn: '🗑️ Clear Cart', editCartBtn: '✏️ Edit Cart',
+          emptyText: 'Your cart is empty! Let\'s add some items.', clearedText: '🗑️ Cart cleared! Let\'s start fresh.',
+          cancelText: 'Order cancelled. Send *Hi* to start again anytime!',
+          collectNameText: 'To complete your order, I need your name.\n\nPlease type your *full name* (e.g. Ade Johnson):',
+          paymentConfirmText: (name: string, ref: string) => `✅ *Payment Confirmed!*\n\nYour order at *${name}* is confirmed!\n🔑 Ref: *${ref}*\n\nWe'll notify you when it's ready. 🎉`,
+          hintBtns: 'Please tap *Add More*, *View Cart*, or *Checkout*.',
+          hintCartBtns: 'Please tap *Checkout*, *Add More*, or *Clear Cart*.',
+          hintConfirmBtns: 'Please tap *Confirm*, *Edit Cart*, or *Cancel*.',
+        };
     }
   }
 

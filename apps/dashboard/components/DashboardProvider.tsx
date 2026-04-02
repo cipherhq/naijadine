@@ -28,6 +28,7 @@ export interface Restaurant {
   cancellation_hours: number;
   status: string;
   product_type: string;
+  business_category: string | null;
   created_at: string;
 }
 
