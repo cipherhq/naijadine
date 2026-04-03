@@ -80,12 +80,17 @@ BEGIN
       AND column_name = 'business_category'
       AND data_type = 'USER-DEFINED'
   ) THEN
+    -- Drop the enum-typed default first, then convert, then set a text default
+    ALTER TABLE public.restaurants
+      ALTER COLUMN business_category DROP DEFAULT;
     ALTER TABLE public.restaurants
       ALTER COLUMN business_category TYPE TEXT USING business_category::TEXT;
+    ALTER TABLE public.restaurants
+      ALTER COLUMN business_category SET DEFAULT 'restaurant';
   END IF;
 END $$;
 
--- Drop the old enum type if it exists
+-- Drop the old enum type if it exists (safe now that no column references it)
 DROP TYPE IF EXISTS business_category;
 
 -- C. custom_commission_rate column on restaurants
