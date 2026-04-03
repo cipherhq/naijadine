@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@naijadine/shared';
 
 interface Reservation {
   id: string;
@@ -228,7 +228,7 @@ export default function DashboardOverview() {
                         day: 'numeric',
                         month: 'short',
                       })}{' '}
-                      at {r.time}
+                      at {formatTime(r.time)}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.party_size}</td>
                     <td className="px-4 py-3">

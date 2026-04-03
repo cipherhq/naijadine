@@ -15,6 +15,17 @@ export default async function DashboardLayout({
 
   if (!user) redirect('/login');
 
+  // Admins/super_admins go straight to admin panel — they don't need a restaurant
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile && ['admin', 'super_admin'].includes(profile.role)) {
+    redirect('/admin');
+  }
+
   // Fetch the user's restaurant
   const { data: restaurant } = await supabase
     .from('restaurants')

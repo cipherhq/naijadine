@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface Broadcast {
   id: string;
@@ -15,6 +16,7 @@ interface Broadcast {
 }
 
 export default function AdminCommunicationsPage() {
+  const { verified } = useAdminGuard();
   const [tab, setTab] = useState<'compose' | 'history'>('compose');
   const [history, setHistory] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,12 +44,12 @@ export default function AdminCommunicationsPage() {
   }
 
   useEffect(() => {
-    if (tab === 'history') fetchHistory();
-  }, [tab]);
+    if (verified && tab === 'history') fetchHistory();
+  }, [tab, verified]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.subject || !form.body) return;
+    if (!verified || !form.subject || !form.body) return;
     setSending(true);
 
     const supabase = createClient();

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface ReviewItem {
   id: string;
@@ -17,6 +18,7 @@ interface ReviewItem {
 }
 
 export default function ModerationPage() {
+  const { verified } = useAdminGuard();
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
@@ -82,12 +84,15 @@ export default function ModerationPage() {
   }
 
   useEffect(() => {
-    fetchItems();
+    if (verified) fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, verified]);
 
   async function moderate(item: ReviewItem, decision: 'approved' | 'rejected') {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     const table = item.type === 'review' ? 'reviews' : 'restaurant_photos';
     await supabase
       .from(table)
@@ -98,6 +103,7 @@ export default function ModerationPage() {
       action: `${item.type}_${decision}`,
       entity_type: item.type,
       entity_id: item.id,
+      user_id: user.id,
       details: { decision },
     });
 
@@ -122,7 +128,7 @@ export default function ModerationPage() {
         ))}
       </div>
 
-      {loading ? (
+      {!verified || loading ? (
         <div className="mt-8 flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
         </div>

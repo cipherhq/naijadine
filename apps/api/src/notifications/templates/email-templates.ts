@@ -204,6 +204,67 @@ export function noShowWarningEmail(data: { guestName: string; restaurantName: st
   };
 }
 
+export function whatsappSetupPendingEmail(data: { ownerName: string; businessName: string }): { subject: string; html: string } {
+  return {
+    subject: `We're setting up ${data.businessName} — hang tight!`,
+    html: baseLayout(`
+      <div style="text-align:center; margin-bottom:20px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:#dbeafe;display:inline-flex;align-items:center;justify-content:center;">
+          <span style="font-size:24px;">⏳</span>
+        </div>
+      </div>
+      <h2 style="text-align:center;color:#111827;margin:0 0 8px;">Application Received!</h2>
+      <p style="text-align:center;color:#6b7280;margin:0 0 24px;">
+        Hi ${data.ownerName}, thanks for signing up <strong>${data.businessName}</strong> on NaijaDine.
+      </p>
+      <div style="background:#f0f9ff;border-radius:8px;padding:16px;margin-bottom:20px;">
+        <p style="font-size:14px;color:#1e40af;margin:0 0 8px;font-weight:600;">What happens next?</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">1. Our team will review your application</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">2. We'll configure your WhatsApp bot</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">3. If you requested a dedicated number, setup may take 2-3 business days</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">4. You'll receive an email once everything is ready</p>
+      </div>
+      <p style="font-size:13px;color:#6b7280;text-align:center;">
+        We'll keep you updated every step of the way. If you have questions, reply to this email.
+      </p>
+    `),
+  };
+}
+
+export function whatsappSetupCompleteEmail(data: { ownerName: string; businessName: string; phoneNumber?: string }): { subject: string; html: string } {
+  const phoneLine = data.phoneNumber
+    ? `<p style="font-size:14px;color:#065f46;margin:8px 0 0;">Your WhatsApp bot number: <strong>${data.phoneNumber}</strong></p>`
+    : '';
+
+  return {
+    subject: `${data.businessName} is live on NaijaDine!`,
+    html: baseLayout(`
+      <div style="text-align:center; margin-bottom:20px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:#d1fae5;display:inline-flex;align-items:center;justify-content:center;">
+          <span style="font-size:24px;">🎉</span>
+        </div>
+      </div>
+      <h2 style="text-align:center;color:#111827;margin:0 0 8px;">You're Live!</h2>
+      <p style="text-align:center;color:#6b7280;margin:0 0 24px;">
+        Hi ${data.ownerName}, great news — <strong>${data.businessName}</strong> is now set up and ready to go!
+      </p>
+      <div style="background:#ecfdf5;border-radius:8px;padding:16px;margin-bottom:20px;text-align:center;">
+        <p style="font-size:14px;color:#065f46;margin:0;font-weight:600;">Your WhatsApp bot is active</p>
+        ${phoneLine}
+      </div>
+      <div style="background:#f9fafb;border-radius:8px;padding:16px;margin-bottom:20px;">
+        <p style="font-size:13px;color:#374151;margin:0 0 8px;font-weight:600;">Getting started:</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">1. Share your WhatsApp link with customers</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">2. Customers can book, order, or inquire via chat</p>
+        <p style="font-size:13px;color:#374151;margin:4px 0;">3. Manage bookings from your dashboard</p>
+      </div>
+      <div style="text-align:center;margin:20px 0;">
+        <a href="https://dashboard.naijadine.com" class="btn">Go to Dashboard</a>
+      </div>
+    `),
+  };
+}
+
 export function restaurantApprovedEmail(data: { ownerName: string; restaurantName: string }): { subject: string; html: string } {
   return {
     subject: `Congratulations! ${data.restaurantName} is live on NaijaDine`,

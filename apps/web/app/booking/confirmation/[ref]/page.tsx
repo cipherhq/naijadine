@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@naijadine/shared';
 
 export const metadata: Metadata = {
   title: 'Booking Confirmed',
@@ -16,10 +16,17 @@ export default async function BookingConfirmationPage({ params }: PageProps) {
   const { ref } = await params;
   const supabase = await createClient();
 
+  // Auth check — redirect unauthenticated users to login
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect(`/login?redirect=/booking/confirmation/${encodeURIComponent(ref)}`);
+  }
+
   const { data: reservation } = await supabase
     .from('reservations')
     .select('*, restaurants (name, slug, address, neighborhood, city, phone)')
     .eq('reference_code', ref)
+    .eq('user_id', user.id)
     .single();
 
   if (!reservation) notFound();
@@ -74,7 +81,7 @@ export default async function BookingConfirmationPage({ params }: PageProps) {
             </div>
             <div className="flex justify-between border-b border-gray-100 pb-2">
               <span className="text-gray-500">Time</span>
-              <span className="font-medium">{reservation.time}</span>
+              <span className="font-medium">{formatTime(reservation.time)}</span>
             </div>
             <div className="flex justify-between border-b border-gray-100 pb-2">
               <span className="text-gray-500">Guests</span>

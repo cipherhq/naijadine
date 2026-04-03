@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
+import { formatTime } from '@naijadine/shared';
 
 interface Guest {
   user_id: string;
@@ -254,7 +255,7 @@ export default function GuestsPage() {
                       })}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {h.time} &middot; {h.party_size} guests
+                      {formatTime(h.time)} &middot; {h.party_size} guests
                     </p>
                   </div>
                   <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize text-gray-600">

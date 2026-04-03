@@ -29,6 +29,8 @@ export interface Restaurant {
   status: string;
   product_type: string;
   business_category: string | null;
+  payment_gateway: string | null;
+  gateway_subaccount_code: string | null;
   created_at: string;
 }
 

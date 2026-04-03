@@ -8,6 +8,36 @@ export const APP_TAGLINE = 'Discover. Reserve. Dine.';
 export const BOOKING_REF_PREFIX = 'ND';
 export const ORDER_REF_PREFIX = 'FO';
 
+// ── Category-Specific Reference Prefixes ──
+export const RESERVATION_PREFIX_MAP: Record<string, string> = {
+  barber: 'BAR',
+  salon: 'SAL',
+  spa: 'SPA',
+  gym: 'GYM',
+  car_wash: 'CWS',
+  mechanic: 'MCH',
+  hotel: 'HTL',
+  clinic: 'CLN',
+  tutor: 'TUT',
+  photography: 'PHT',
+  cleaning: 'CLG',
+  coworking: 'CWK',
+};
+
+export const ORDER_PREFIX_MAP: Record<string, string> = {
+  beauty: 'BTY',
+  laundry: 'LDY',
+  catering: 'CTR',
+  tailor: 'TLR',
+  printing: 'PRT',
+  logistics: 'LGS',
+  bakery: 'BKR',
+  church: 'CHR',
+  cinema: 'CIN',
+  events: 'EVT',
+  shop: 'SHP',
+};
+
 export const ORDER_DEFAULTS = {
   maxItemQuantity: 10,
   maxCartItems: 20,
@@ -131,6 +161,14 @@ export function formatNaira(amount: number): string {
   }).format(amount);
 }
 
+// ── Format Time (12-hour) ──
+export function formatTime(time24: string): string {
+  const [h, m] = time24.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
 // ── Brand Colors ──
 export const COLORS = {
   brand: '#1B4332',
@@ -142,6 +180,77 @@ export const COLORS = {
   info: '#3B82F6',
   whatsapp: '#25D366',
 } as const;
+
+// ── Business Categories ──
+export const BUSINESS_CATEGORIES = [
+  { key: 'restaurant', label: 'Restaurant', group: 'food', icon: '🍽️' },
+  { key: 'bakery', label: 'Bakery', group: 'food', icon: '🧁' },
+  { key: 'catering', label: 'Catering', group: 'food', icon: '🍱' },
+  { key: 'barber', label: 'Barber', group: 'beauty', icon: '💈' },
+  { key: 'salon', label: 'Salon', group: 'beauty', icon: '💇' },
+  { key: 'beauty', label: 'Beauty', group: 'beauty', icon: '💄' },
+  { key: 'spa', label: 'Spa', group: 'beauty', icon: '🧖' },
+  { key: 'gym', label: 'Gym', group: 'health', icon: '🏋️' },
+  { key: 'clinic', label: 'Clinic', group: 'health', icon: '🏥' },
+  { key: 'hotel', label: 'Hotel', group: 'hospitality', icon: '🏨' },
+  { key: 'coworking', label: 'Coworking', group: 'hospitality', icon: '💻' },
+  { key: 'church', label: 'Church', group: 'community', icon: '⛪' },
+  { key: 'cinema', label: 'Cinema', group: 'community', icon: '🎬' },
+  { key: 'events', label: 'Events', group: 'community', icon: '🎉' },
+  { key: 'shop', label: 'Shop', group: 'community', icon: '🛍️' },
+  { key: 'laundry', label: 'Laundry', group: 'services', icon: '👔' },
+  { key: 'car_wash', label: 'Car Wash', group: 'services', icon: '🚗' },
+  { key: 'mechanic', label: 'Mechanic', group: 'services', icon: '🔧' },
+  { key: 'cleaning', label: 'Cleaning', group: 'services', icon: '🧹' },
+  { key: 'tailor', label: 'Tailor', group: 'services', icon: '🪡' },
+  { key: 'printing', label: 'Printing', group: 'services', icon: '🖨️' },
+  { key: 'logistics', label: 'Logistics', group: 'services', icon: '📦' },
+  { key: 'tutor', label: 'Tutor', group: 'services', icon: '📚' },
+  { key: 'photography', label: 'Photography', group: 'services', icon: '📸' },
+  { key: 'other', label: 'Other', group: 'services', icon: '🏢' },
+] as const;
+
+export type BusinessCategoryKey = (typeof BUSINESS_CATEGORIES)[number]['key'];
+export type BusinessGroup = (typeof BUSINESS_CATEGORIES)[number]['group'];
+
+/** Shape of a row in the `business_categories` DB table */
+export interface BusinessCategoryRow {
+  key: string;
+  label: string;
+  group: string;
+  icon: string;
+  is_active: boolean;
+  sort_order: number;
+  default_greeting: string | null;
+  booking_type: 'appointment' | 'order' | 'general';
+  created_at: string;
+}
+
+export const BUSINESS_CATEGORY_KEYS = BUSINESS_CATEGORIES.map(c => c.key);
+
+const GROUP_GREETINGS: Record<string, string> = {
+  food: 'Welcome! I can help you place an order or book a table.',
+  beauty: 'Welcome! I can help you book an appointment.',
+  health: 'Welcome! I can help you book a session.',
+  hospitality: 'Welcome! How can I assist you today?',
+  services: 'Welcome! How can I help you today?',
+  community: 'Welcome! How can I assist you?',
+};
+
+export const CATEGORY_GROUP_LABELS: Record<string, string> = {
+  food: 'Food & Dining',
+  beauty: 'Beauty & Wellness',
+  health: 'Health & Fitness',
+  hospitality: 'Hospitality',
+  services: 'Services',
+  community: 'Entertainment & Community',
+};
+
+export function getDefaultGreeting(categoryKey: string, businessName: string): string {
+  const cat = BUSINESS_CATEGORIES.find(c => c.key === categoryKey);
+  const base = GROUP_GREETINGS[cat?.group || 'services'] || GROUP_GREETINGS.services;
+  return `Welcome to ${businessName}! ${base}`;
+}
 
 // ── Bot Code Generator ──
 export function generateBotCode(name: string): string {

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // Get reservation
     const { data: reservation } = await supabase
       .from('reservations')
-      .select('*, restaurants (name)')
+      .select('*, restaurants (name, payment_gateway, gateway_subaccount_code)')
       .eq('id', reservation_id)
       .eq('user_id', user.id)
       .single();
@@ -61,8 +61,12 @@ export async function POST(request: NextRequest) {
 
     const idempotencyKey = randomUUID();
     const amountInKobo = reservation.deposit_amount * 100;
-    const restaurantName =
-      (reservation.restaurants as { name: string } | null)?.name || 'Restaurant';
+    const restaurantData = reservation.restaurants as {
+      name: string;
+      payment_gateway: string | null;
+      gateway_subaccount_code: string | null;
+    } | null;
+    const restaurantName = restaurantData?.name || 'Restaurant';
 
     const paystackKey = process.env.PAYSTACK_SECRET_KEY;
 
@@ -103,6 +107,11 @@ export async function POST(request: NextRequest) {
         email,
         amount: amountInKobo,
         callback_url,
+        // Pass subaccount for automatic payment splitting
+        ...(restaurantData?.payment_gateway === 'paystack' &&
+          restaurantData.gateway_subaccount_code && {
+            subaccount: restaurantData.gateway_subaccount_code,
+          }),
         metadata: {
           reservation_id,
           user_id: user.id,

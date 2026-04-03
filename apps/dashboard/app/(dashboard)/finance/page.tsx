@@ -43,6 +43,7 @@ export default function FinancePage() {
     totalPayouts: 0,
     pendingPayout: 0,
   });
+  const [commissionPct, setCommissionPct] = useState(10);
 
   useEffect(() => {
     async function fetchFinance() {
@@ -95,6 +96,17 @@ export default function FinancePage() {
         .single();
 
       setBank(bankData);
+
+      // Read commission from platform config
+      const { data: configRow } = await supabase
+        .from('platform_config')
+        .select('value')
+        .eq('key', 'platform_commission_pct')
+        .maybeSingle();
+      if (configRow?.value) {
+        setCommissionPct(parseFloat(configRow.value));
+      }
+
       setLoading(false);
     }
 
@@ -163,8 +175,8 @@ export default function FinancePage() {
                 <span className="font-medium text-gray-900">{formatNaira(stats.totalRevenue)}</span>
               </div>
               <div className="flex justify-between border-b border-gray-50 pb-3">
-                <span className="text-sm text-gray-600">Platform commission (10%)</span>
-                <span className="font-medium text-red-600">-{formatNaira(stats.totalRevenue * 0.1)}</span>
+                <span className="text-sm text-gray-600">Platform commission ({commissionPct}%)</span>
+                <span className="font-medium text-red-600">-{formatNaira(stats.totalRevenue * (commissionPct / 100))}</span>
               </div>
               <div className="flex justify-between border-b border-gray-50 pb-3">
                 <span className="text-sm text-gray-600">VAT (7.5%)</span>
@@ -172,7 +184,7 @@ export default function FinancePage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-sm font-semibold text-gray-900">Net earnings</span>
-                <span className="font-bold text-brand">{formatNaira(stats.totalRevenue * 0.825)}</span>
+                <span className="font-bold text-brand">{formatNaira(stats.totalRevenue * (1 - commissionPct / 100 - 0.075))}</span>
               </div>
             </div>
           </div>

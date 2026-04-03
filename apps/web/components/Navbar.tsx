@@ -51,14 +51,14 @@ export function Navbar() {
             Restaurants
           </Link>
           <Link
-            href="/whatsapp"
+            href="/get-started"
             className={`text-sm font-medium transition ${
-              pathname === '/whatsapp'
+              pathname === '/get-started'
                 ? 'text-brand'
                 : 'text-gray-600 hover:text-brand'
             }`}
           >
-            For Restaurants
+            For Business
           </Link>
 
           {user ? (
@@ -115,11 +115,11 @@ export function Navbar() {
               Restaurants
             </Link>
             <Link
-              href="/whatsapp"
+              href="/get-started"
               onClick={() => setMenuOpen(false)}
               className="text-sm font-medium text-gray-700"
             >
-              For Restaurants
+              For Business
             </Link>
             {user ? (
               <>

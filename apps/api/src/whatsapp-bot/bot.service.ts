@@ -134,6 +134,11 @@ export class BotService {
     const supabase = this.supabaseService.getClient();
     const text = messageText.trim();
 
+    // Route replies through the dedicated business number when present
+    if (destinationPhone) {
+      this.gupshupService.setSourceForRecipient(from, destinationPhone);
+    }
+
     // Detect review rating callback (rate_{reservationId}_{rating})
     const rateMatch = /^rate_([a-f0-9-]+)_(\d)$/i.exec(text);
     if (rateMatch) {

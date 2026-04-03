@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant, useDashboard } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { PRICING, formatNaira } from '@naijadine/shared';
+import { PRICING, formatNaira, formatTime } from '@naijadine/shared';
 
 interface Stats {
   todayBookings: number;
@@ -213,7 +213,7 @@ export default function StandaloneOverviewPage() {
                       <p className="text-xs text-gray-400">{(b.guest_phone as string) || ''}</p>
                     </td>
                     <td className="px-5 py-3 text-gray-600">{b.date as string}</td>
-                    <td className="px-5 py-3 text-gray-600">{b.time as string}</td>
+                    <td className="px-5 py-3 text-gray-600">{formatTime(b.time as string)}</td>
                     <td className="px-5 py-3 text-gray-600">{b.party_size as number}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${

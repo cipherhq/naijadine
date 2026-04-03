@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface AuditEntry {
   id: string;
@@ -14,6 +15,7 @@ interface AuditEntry {
 }
 
 export default function AuditLogPage() {
+  const { verified } = useAdminGuard();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState('');
@@ -55,9 +57,9 @@ export default function AuditLogPage() {
   }
 
   useEffect(() => {
-    fetchLogs();
+    if (verified) fetchLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, actionFilter]);
+  }, [page, actionFilter, verified]);
 
   const actionColors: Record<string, string> = {
     restaurant_approved: 'bg-green-100 text-green-700',
@@ -85,7 +87,7 @@ export default function AuditLogPage() {
         />
       </div>
 
-      {loading ? (
+      {!verified || loading ? (
         <div className="mt-8 flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatNaira } from '@naijadine/shared';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface PaymentRow {
   id: string;
@@ -26,6 +27,7 @@ interface PayoutRow {
 }
 
 export default function AdminFinancePage() {
+  const { verified } = useAdminGuard();
   const [tab, setTab] = useState<'overview' | 'payments' | 'payouts' | 'refunds'>('overview');
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
@@ -40,6 +42,7 @@ export default function AdminFinancePage() {
   });
 
   useEffect(() => {
+    if (!verified) return;
     async function fetchFinance() {
       const supabase = createClient();
       const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
@@ -120,9 +123,9 @@ export default function AdminFinancePage() {
     }
 
     fetchFinance();
-  }, []);
+  }, [verified]);
 
-  if (loading) {
+  if (!verified || loading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />

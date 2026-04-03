@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRestaurant, useDashboard } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
 import { CUISINE_TYPES } from '@naijadine/shared';
@@ -25,9 +25,104 @@ const cuisineLabels: Record<string, string> = {
 export default function SettingsPage() {
   const restaurant = useRestaurant();
   const { userId } = useDashboard();
-  const [tab, setTab] = useState<'profile' | 'hours' | 'booking' | 'menu' | 'staff'>('profile');
+  const [tab, setTab] = useState<'profile' | 'hours' | 'booking' | 'menu' | 'staff' | 'payments'>('profile');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Payments
+  const [payGateway, setPayGateway] = useState<'paystack' | 'flutterwave'>(
+    (restaurant.payment_gateway as 'paystack' | 'flutterwave') || 'paystack',
+  );
+  const [banks, setBanks] = useState<{ name: string; code: string }[]>([]);
+  const [bankCode, setBankCode] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [resolvedName, setResolvedName] = useState('');
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState('');
+  const [paymentEnabled, setPaymentEnabled] = useState(!!restaurant.gateway_subaccount_code);
+  const [paymentError, setPaymentError] = useState('');
+  const [existingBank, setExistingBank] = useState<{ bank_name: string; account_number: string } | null>(null);
+  const [banksLoading, setBanksLoading] = useState(false);
+
+  const loadBanks = useCallback(async (gw: string) => {
+    setBanksLoading(true);
+    try {
+      const res = await fetch(`/api/payments/banks?gateway=${gw}`);
+      const data = await res.json();
+      if (data.banks) setBanks(data.banks);
+    } catch { /* ignore */ }
+    setBanksLoading(false);
+  }, []);
+
+  const loadExistingBank = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('bank_accounts')
+      .select('bank_name, account_number')
+      .eq('restaurant_id', restaurant.id)
+      .maybeSingle();
+    if (data) setExistingBank(data);
+  }, [restaurant.id]);
+
+  useEffect(() => {
+    if (tab === 'payments') {
+      loadBanks(payGateway);
+      loadExistingBank();
+    }
+  }, [tab, payGateway, loadBanks, loadExistingBank]);
+
+  async function resolveAccount() {
+    if (!bankCode || accountNumber.length !== 10) return;
+    setResolving(true);
+    setResolveError('');
+    setResolvedName('');
+    try {
+      const res = await fetch(
+        `/api/payments/resolve-account?account_number=${accountNumber}&bank_code=${bankCode}&gateway=${payGateway}`,
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setResolvedName(data.account_name);
+      } else {
+        setResolveError(data.message || 'Could not resolve account');
+      }
+    } catch {
+      setResolveError('Network error');
+    }
+    setResolving(false);
+  }
+
+  async function enablePayments() {
+    if (!resolvedName || !bankCode) return;
+    setSaving(true);
+    setPaymentError('');
+    const selectedBank = banks.find((b) => b.code === bankCode);
+    try {
+      const res = await fetch('/api/payments/create-subaccount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurant_id: restaurant.id,
+          gateway: payGateway,
+          bank_code: bankCode,
+          account_number: accountNumber,
+          account_name: resolvedName,
+          bank_name: selectedBank?.name || bankCode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPaymentEnabled(true);
+        setExistingBank({ bank_name: selectedBank?.name || bankCode, account_number: accountNumber });
+        showSaved();
+      } else {
+        setPaymentError(data.message || 'Failed to enable payments');
+      }
+    } catch {
+      setPaymentError('Network error');
+    }
+    setSaving(false);
+  }
 
   // Menu
   const [menuUrl, setMenuUrl] = useState<string | null>(restaurant.menu_url || null);
@@ -271,6 +366,7 @@ export default function SettingsPage() {
           { key: 'booking', label: 'Booking' },
           { key: 'menu', label: 'Menu' },
           { key: 'staff', label: 'Staff' },
+          { key: 'payments', label: 'Payments' },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -561,6 +657,171 @@ export default function SettingsPage() {
             >
               {uploading ? 'Uploading...' : 'Upload Menu'}
             </button>
+          </div>
+        )}
+
+        {/* Payments Tab */}
+        {tab === 'payments' && (
+          <div className="space-y-6">
+            {/* Already enabled status */}
+            {paymentEnabled && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                    Payments enabled
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    via {restaurant.payment_gateway === 'flutterwave' ? 'Flutterwave' : 'Paystack'}
+                  </span>
+                </div>
+                {existingBank && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    {existingBank.bank_name} &middot; ******{existingBank.account_number.slice(-4)}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    setPaymentEnabled(false);
+                    setResolvedName('');
+                    setAccountNumber('');
+                    setBankCode('');
+                  }}
+                  className="mt-3 text-xs text-brand hover:underline"
+                >
+                  Update Bank Account
+                </button>
+              </div>
+            )}
+
+            {!paymentEnabled && (
+              <>
+                {/* Gateway Selection */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Payment Gateway</h3>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Choose how you want to receive payments from customers
+                  </p>
+                  <div className="mt-3 flex gap-3">
+                    {(['paystack', 'flutterwave'] as const).map((gw) => (
+                      <button
+                        key={gw}
+                        type="button"
+                        onClick={() => {
+                          setPayGateway(gw);
+                          setBankCode('');
+                          setResolvedName('');
+                          setResolveError('');
+                        }}
+                        className={`flex-1 rounded-lg border-2 p-4 text-left transition ${
+                          payGateway === gw
+                            ? 'border-brand bg-brand-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-gray-900 capitalize">{gw}</p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {gw === 'paystack'
+                            ? 'Popular in Nigeria. Fast settlements.'
+                            : 'Pan-African coverage. Multiple currencies.'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bank Account Setup */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Bank Account</h3>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Enter your business bank account for receiving payouts
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    <Field label="Bank">
+                      {banksLoading ? (
+                        <div className="flex items-center gap-2 py-2">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                          <span className="text-xs text-gray-400">Loading banks...</span>
+                        </div>
+                      ) : (
+                        <select
+                          value={bankCode}
+                          onChange={(e) => {
+                            setBankCode(e.target.value);
+                            setResolvedName('');
+                            setResolveError('');
+                          }}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-brand"
+                        >
+                          <option value="">Select bank...</option>
+                          {banks.map((b) => (
+                            <option key={b.code} value={b.code}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </Field>
+
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Field label="Account Number">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={10}
+                            placeholder="0123456789"
+                            value={accountNumber}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              setAccountNumber(val);
+                              setResolvedName('');
+                              setResolveError('');
+                            }}
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-brand"
+                          />
+                        </Field>
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          onClick={resolveAccount}
+                          disabled={resolving || !bankCode || accountNumber.length !== 10}
+                          className="rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                        >
+                          {resolving ? 'Verifying...' : 'Verify'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {resolvedName && (
+                      <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                        <p className="text-sm font-medium text-green-800">{resolvedName}</p>
+                        <p className="text-xs text-green-600">Account verified successfully</p>
+                      </div>
+                    )}
+
+                    {resolveError && (
+                      <p className="text-sm text-red-600">{resolveError}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Enable Payments */}
+                {resolvedName && (
+                  <div>
+                    <button
+                      onClick={enablePayments}
+                      disabled={saving}
+                      className="rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand-500 disabled:opacity-50"
+                    >
+                      {saving ? 'Setting up...' : 'Enable Payments'}
+                    </button>
+                    {paymentError && (
+                      <p className="mt-2 text-sm text-red-600">{paymentError}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 

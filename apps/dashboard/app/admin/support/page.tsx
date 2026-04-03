@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface Ticket {
   id: string;
@@ -24,6 +25,7 @@ const priorityColors: Record<string, string> = {
 };
 
 export default function AdminSupportPage() {
+  const { verified } = useAdminGuard();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('open');
@@ -65,9 +67,9 @@ export default function AdminSupportPage() {
   }
 
   useEffect(() => {
-    fetchTickets();
+    if (verified) fetchTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [statusFilter, verified]);
 
   async function updateTicketStatus(id: string, status: string) {
     const supabase = createClient();
@@ -114,7 +116,7 @@ export default function AdminSupportPage() {
         ))}
       </div>
 
-      {loading ? (
+      {!verified || loading ? (
         <div className="mt-8 flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
         </div>

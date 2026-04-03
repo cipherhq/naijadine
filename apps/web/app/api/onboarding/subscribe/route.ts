@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     const email = profile?.email || `${(profile?.phone || user.id).replace('+', '')}@whatsapp.naijadine.com`;
-    const callbackUrl = `${(process.env.NEXT_PUBLIC_APP_URL || 'https://naijadine.com').trim()}/whatsapp/get-started?step=success&restaurant_id=${restaurant_id}`;
+    const callbackUrl = `${(process.env.NEXT_PUBLIC_APP_URL || 'https://naijadine.com').trim()}/get-started?step=success&restaurant_id=${restaurant_id}`;
 
     // If a Paystack payment page slug is configured, redirect to it directly
     if (pageSlug && !pageSlug.startsWith('PLN_')) {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira, BOOKING_DEFAULTS } from '@naijadine/shared';
+import { formatNaira, formatTime, BOOKING_DEFAULTS } from '@naijadine/shared';
 
 type Step = 'details' | 'confirm';
 
@@ -354,7 +354,7 @@ export default function BookingPage() {
                               : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
                           }`}
                         >
-                          {slot.time}
+                          {formatTime(slot.time)}
                         </button>
                       ))}
                     </div>
@@ -464,7 +464,7 @@ export default function BookingPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Time</span>
-                <span className="font-medium">{time}</span>
+                <span className="font-medium">{formatTime(time)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Guests</span>

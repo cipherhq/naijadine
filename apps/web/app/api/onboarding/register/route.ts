@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { generateSlug, generateBotCode, CITIES } from '@naijadine/shared';
+import { generateSlug, generateBotCode, CITIES, BUSINESS_CATEGORY_KEYS, getDefaultGreeting } from '@naijadine/shared';
 
 const VALID_PLANS = ['starter', 'professional'] as const;
 const VALID_CITIES = Object.keys(CITIES);
@@ -16,12 +16,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, city, neighborhood, address, phone, plan, bot_alias, bot_greeting } = body;
+    const {
+      name, city, neighborhood, address, phone, plan, bot_alias, bot_greeting,
+      business_category, cuisine_types, pricing_tier, services_description,
+    } = body;
 
     // Validate required fields
     if (!name || !city || !neighborhood || !address || !phone || !plan) {
       return NextResponse.json(
         { message: 'Missing required fields: name, city, neighborhood, address, phone, plan' },
+        { status: 400 },
+      );
+    }
+
+    // Validate business_category if provided
+    if (business_category && !BUSINESS_CATEGORY_KEYS.includes(business_category)) {
+      return NextResponse.json(
+        { message: 'Invalid business category' },
         { status: 400 },
       );
     }
@@ -91,6 +102,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Build category-specific metadata
+    const categoryMeta: Record<string, unknown> = {};
+    if (cuisine_types) categoryMeta.cuisine_types = cuisine_types;
+    if (pricing_tier) categoryMeta.pricing_tier = pricing_tier;
+    if (services_description) categoryMeta.services_description = services_description;
+
     // Create restaurant
     const { data: restaurant, error: insertError } = await service
       .from('restaurants')
@@ -103,10 +120,12 @@ export async function POST(request: NextRequest) {
         neighborhood,
         address,
         phone,
+        business_category: business_category || 'restaurant',
         product_type: 'whatsapp_standalone',
         whatsapp_plan: plan,
         is_whitelabel: plan === 'professional',
         status: 'pending',
+        ...(Object.keys(categoryMeta).length > 0 ? { category_meta: categoryMeta } : {}),
       })
       .select('id, bot_code, slug')
       .single();
@@ -118,10 +137,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create whatsapp_config with defaults or user-provided values
+    // Create whatsapp_config with category-appropriate defaults
+    const defaultGreeting = getDefaultGreeting(business_category || 'restaurant', name);
     await service.from('whatsapp_config').insert({
       restaurant_id: restaurant.id,
-      bot_greeting: bot_greeting || `Welcome to ${name}! 🍽️ I can help you book a table. When would you like to dine?`,
+      bot_greeting: bot_greeting || defaultGreeting,
       bot_alias: bot_alias || null,
       auto_confirm: true,
     });

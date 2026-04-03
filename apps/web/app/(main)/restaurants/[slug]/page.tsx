@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@naijadine/shared';
 import { FavoriteButton } from '@/components/FavoriteButton';
 
 interface PageProps {
@@ -407,7 +407,7 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
                     return (
                       <div key={day} className="flex justify-between">
                         <span className="capitalize">{day}</span>
-                        <span>{h ? `${h.open} — ${h.close}` : 'Closed'}</span>
+                        <span>{h ? `${formatTime(h.open)} — ${formatTime(h.close)}` : 'Closed'}</span>
                       </div>
                     );
                   })}

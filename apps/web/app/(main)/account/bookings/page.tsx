@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@naijadine/shared';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'My Bookings — NaijaDine' };
@@ -60,7 +60,7 @@ export default async function BookingsPage() {
               {booking.status}
             </span>
           </div>
-          <p className="mt-0.5 text-sm text-gray-500">{bookingDate} at {booking.time}</p>
+          <p className="mt-0.5 text-sm text-gray-500">{bookingDate} at {formatTime(booking.time)}</p>
           <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
             <span>{booking.party_size} guests</span>
             <span>Ref: {booking.reference_code}</span>

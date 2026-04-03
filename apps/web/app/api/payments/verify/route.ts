@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { createInAppNotification } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
@@ -14,14 +15,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Auth check — must be logged in
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Authentication required' },
+        { status: 401 },
+      );
+    }
+
     const paystackKey = process.env.PAYSTACK_SECRET_KEY;
 
-    // Get the payment record
+    // Get the payment record — scoped to the authenticated user
     const { data: payment } = await supabase
       .from('payments')
       .select('id, status, amount, reservation_id, user_id')
       .eq('gateway_reference', reference)
+      .eq('user_id', user.id)
       .single();
 
     if (!payment) {
@@ -40,15 +52,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Service role client for writes (bypasses RLS)
+    const service = createServiceClient();
+
     if (!paystackKey || reference.startsWith('mock_')) {
       // Dev mode — auto-succeed
-      await supabase
+      await service
         .from('payments')
         .update({ status: 'success', paid_at: new Date().toISOString() })
         .eq('gateway_reference', reference);
 
       if (payment.reservation_id) {
-        await supabase
+        await service
           .from('reservations')
           .update({
             deposit_status: 'paid',
@@ -59,14 +74,12 @@ export async function GET(request: NextRequest) {
       }
 
       // In-app notification
-      if (payment.user_id) {
-        await createInAppNotification(
-          supabase, payment.user_id, 'payment',
-          'Payment Received',
-          `Your deposit of ₦${payment.amount.toLocaleString()} has been confirmed.`,
-          { payment_id: payment.id, reservation_id: payment.reservation_id },
-        );
-      }
+      await createInAppNotification(
+        service, payment.user_id, 'payment',
+        'Payment Received',
+        `Your deposit of ₦${payment.amount.toLocaleString()} has been confirmed.`,
+        { payment_id: payment.id, reservation_id: payment.reservation_id },
+      );
 
       return NextResponse.json({
         status: 'success',
@@ -94,7 +107,7 @@ export async function GET(request: NextRequest) {
       // Verify amount
       const expectedKobo = payment.amount * 100;
       if (data.data.amount !== expectedKobo) {
-        await supabase
+        await service
           .from('payments')
           .update({ status: 'failed', gateway_status: 'amount_mismatch' })
           .eq('gateway_reference', reference);
@@ -103,7 +116,7 @@ export async function GET(request: NextRequest) {
       }
 
       const authorization = data.data.authorization || {};
-      await supabase
+      await service
         .from('payments')
         .update({
           status: 'success',
@@ -116,7 +129,7 @@ export async function GET(request: NextRequest) {
         .eq('gateway_reference', reference);
 
       if (payment.reservation_id) {
-        await supabase
+        await service
           .from('reservations')
           .update({
             deposit_status: 'paid',
@@ -127,14 +140,12 @@ export async function GET(request: NextRequest) {
       }
 
       // In-app notification
-      if (payment.user_id) {
-        await createInAppNotification(
-          supabase, payment.user_id, 'payment',
-          'Payment Received',
-          `Your deposit of ₦${payment.amount.toLocaleString()} has been confirmed.`,
-          { payment_id: payment.id, reservation_id: payment.reservation_id },
-        );
-      }
+      await createInAppNotification(
+        service, payment.user_id, 'payment',
+        'Payment Received',
+        `Your deposit of ₦${payment.amount.toLocaleString()} has been confirmed.`,
+        { payment_id: payment.id, reservation_id: payment.reservation_id },
+      );
 
       return NextResponse.json({
         status: 'success',

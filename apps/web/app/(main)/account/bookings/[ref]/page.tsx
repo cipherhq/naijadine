@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira, BOOKING_DEFAULTS } from '@naijadine/shared';
+import { formatNaira, formatTime, BOOKING_DEFAULTS } from '@naijadine/shared';
 
 interface Reservation {
   id: string;
@@ -278,7 +278,7 @@ export default function BookingDetailPage() {
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">Time</span>
-          <span className="font-medium">{r.time}</span>
+          <span className="font-medium">{formatTime(r.time)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">Guests</span>
@@ -355,7 +355,7 @@ export default function BookingDetailPage() {
                     className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-brand"
                   >
                     {timeOptions.map((t) => (
-                      <option key={t} value={t}>{t}</option>
+                      <option key={t} value={t}>{formatTime(t)}</option>
                     ))}
                   </select>
                 </div>

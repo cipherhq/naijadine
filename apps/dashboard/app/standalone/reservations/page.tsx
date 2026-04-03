@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant, useDashboard } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
+import { formatTime } from '@naijadine/shared';
 
 interface Reservation {
   id: string;
@@ -301,7 +302,7 @@ export default function StandaloneReservationsPage() {
                       <p className="text-xs text-gray-400">{r.guest_phone || ''}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.date}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.time}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatTime(r.time)}</td>
                     <td className="px-4 py-3 text-gray-600">{r.party_size}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -483,7 +484,7 @@ export default function StandaloneReservationsPage() {
                   </div>
                   <div>
                     <span className="text-gray-400">Time</span>
-                    <p className="font-medium text-gray-900">{selectedReservation.time}</p>
+                    <p className="font-medium text-gray-900">{formatTime(selectedReservation.time)}</p>
                   </div>
                   <div>
                     <span className="text-gray-400">Party Size</span>

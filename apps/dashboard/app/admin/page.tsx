@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatNaira } from '@naijadine/shared';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface PlatformStats {
   totalRestaurants: number;
@@ -16,6 +17,7 @@ interface PlatformStats {
 }
 
 export default function AdminDashboard() {
+  const { verified } = useAdminGuard();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [recentBookings, setRecentBookings] = useState<
     { id: string; reference_code: string; guest_name: string; date: string; status: string; restaurant_name: string }[]
@@ -23,6 +25,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!verified) return;
     async function fetchStats() {
       const supabase = createClient();
       const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
@@ -77,9 +80,9 @@ export default function AdminDashboard() {
     }
 
     fetchStats();
-  }, []);
+  }, [verified]);
 
-  if (loading) {
+  if (!verified || loading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />

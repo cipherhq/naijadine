@@ -48,6 +48,14 @@ export class GupshupService {
   private readonly phoneNumber: string;
   private readonly baseUrl = 'https://api.gupshup.io/wa/api/v1';
 
+  /**
+   * Per-recipient source phone overrides.
+   * When a business has a dedicated WhatsApp number, replies to their
+   * customers are sent FROM that number instead of the global one.
+   * Key: recipient phone (digits only), Value: source phone number.
+   */
+  private readonly sourceOverrides = new Map<string, string>();
+
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('GUPSHUP_API_KEY') || '';
     this.phoneNumber = this.configService.get<string>('GUPSHUP_PHONE_NUMBER') || '';
@@ -57,6 +65,21 @@ export class GupshupService {
     return !!this.apiKey && !!this.phoneNumber;
   }
 
+  /** Set a dedicated source phone for replies to a specific recipient. */
+  setSourceForRecipient(recipient: string, sourcePhone: string): void {
+    this.sourceOverrides.set(recipient.replace('+', ''), sourcePhone.replace('+', ''));
+  }
+
+  /** Clear source override for a recipient (falls back to global phone). */
+  clearSourceForRecipient(recipient: string): void {
+    this.sourceOverrides.delete(recipient.replace('+', ''));
+  }
+
+  /** Get the source phone number for a given recipient. */
+  private getSource(recipient: string): string {
+    return this.sourceOverrides.get(recipient.replace('+', '')) || this.phoneNumber;
+  }
+
   async sendTemplate(message: WhatsAppMessage): Promise<{ success: boolean; messageId?: string }> {
     if (!this.isConfigured) {
       this.logger.warn(`[DEV] WhatsApp template to ${message.to}: ${message.templateId} params=${JSON.stringify(message.templateParams)}`);
@@ -64,11 +87,12 @@ export class GupshupService {
     }
 
     try {
+      const source = this.getSource(message.to);
       const body = new URLSearchParams({
         channel: 'whatsapp',
-        source: this.phoneNumber,
+        source,
         destination: message.to.replace('+', ''),
-        'src.name': this.phoneNumber,
+        'src.name': source,
         template: JSON.stringify({
           id: message.templateId,
           params: message.templateParams || [],
@@ -105,11 +129,12 @@ export class GupshupService {
     }
 
     try {
+      const source = this.getSource(message.to);
       const body = new URLSearchParams({
         channel: 'whatsapp',
-        source: this.phoneNumber,
+        source,
         destination: message.to.replace('+', ''),
-        'src.name': this.phoneNumber,
+        'src.name': source,
         message: JSON.stringify({ type: 'text', text: message.text }),
       });
 
@@ -164,11 +189,12 @@ export class GupshupService {
         ],
       };
 
+      const source = this.getSource(message.to);
       const body = new URLSearchParams({
         channel: 'whatsapp',
-        source: this.phoneNumber,
+        source,
         destination: message.to.replace('+', ''),
-        'src.name': this.phoneNumber,
+        'src.name': source,
         message: JSON.stringify(interactive),
       });
 
@@ -212,11 +238,12 @@ export class GupshupService {
         })),
       };
 
+      const source = this.getSource(message.to);
       const body = new URLSearchParams({
         channel: 'whatsapp',
-        source: this.phoneNumber,
+        source,
         destination: message.to.replace('+', ''),
-        'src.name': this.phoneNumber,
+        'src.name': source,
         message: JSON.stringify(interactive),
       });
 
@@ -248,11 +275,12 @@ export class GupshupService {
     }
 
     try {
+      const source = this.getSource(message.to);
       const body = new URLSearchParams({
         channel: 'whatsapp',
-        source: this.phoneNumber,
+        source,
         destination: message.to.replace('+', ''),
-        'src.name': this.phoneNumber,
+        'src.name': source,
         message: JSON.stringify({
           type: 'image',
           originalUrl: message.imageUrl,
@@ -290,11 +318,12 @@ export class GupshupService {
     }
 
     try {
+      const source = this.getSource(message.to);
       const body = new URLSearchParams({
         channel: 'whatsapp',
-        source: this.phoneNumber,
+        source,
         destination: message.to.replace('+', ''),
-        'src.name': this.phoneNumber,
+        'src.name': source,
         message: JSON.stringify({
           type: 'file',
           url: message.documentUrl,

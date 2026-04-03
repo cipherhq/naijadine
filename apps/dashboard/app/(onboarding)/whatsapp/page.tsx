@@ -94,6 +94,13 @@ export default function WhatsAppOnboardingPage() {
         bot_reminder_template: `⏰ *Reminder*\n\nYour reservation at {restaurant_name} is tomorrow at {time} for {party_size} guests.\n\nRef: {reference_code}\n\nSee you there! 🍽️`,
       });
 
+    // Send "setup pending" email to the business owner
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'whatsapp_setup_pending', restaurantId: restaurant.id }),
+    }).catch(() => {}); // fire-and-forget
+
     setSaving(false);
     setStep('done');
   }
@@ -107,9 +114,9 @@ export default function WhatsAppOnboardingPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">You&apos;re All Set!</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Application Submitted!</h1>
           <p className="mt-2 text-sm text-gray-500">
-            Your WhatsApp restaurant bot is being set up. We&apos;ll review your application and notify you when it&apos;s live.
+            We&apos;re reviewing your application and setting up your WhatsApp bot. This typically takes 2-3 business days. We&apos;ll send you an email once everything is ready.
           </p>
           <button
             onClick={() => router.push('/standalone')}

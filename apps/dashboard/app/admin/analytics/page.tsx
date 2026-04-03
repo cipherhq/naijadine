@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatNaira } from '@naijadine/shared';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface CityStats {
   city: string;
@@ -11,6 +12,7 @@ interface CityStats {
 }
 
 export default function AdminAnalyticsPage() {
+  const { verified } = useAdminGuard();
   const [period, setPeriod] = useState<'7d' | '30d' | '90d' | '365d'>('30d');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -27,6 +29,7 @@ export default function AdminAnalyticsPage() {
   const [channelMix, setChannelMix] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (!verified) return;
     async function fetchAnalytics() {
       setLoading(true);
       const supabase = createClient();
@@ -84,9 +87,9 @@ export default function AdminAnalyticsPage() {
     }
 
     fetchAnalytics();
-  }, [period]);
+  }, [period, verified]);
 
-  if (loading) {
+  if (!verified || loading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />

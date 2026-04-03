@@ -25,14 +25,27 @@ export default function DashboardLoginPage() {
       });
 
       if (signInError) {
-        setError('Invalid email or password');
+        const msg = signInError.message?.toLowerCase() || '';
+        if (msg.includes('invalid login credentials')) {
+          setError('Invalid email or password. Please check and try again.');
+        } else if (msg.includes('email not confirmed')) {
+          setError('Your email is not confirmed. Please check your inbox for a verification link.');
+        } else if (msg.includes('too many requests') || msg.includes('rate limit') || msg.includes('after')) {
+          setError('Too many login attempts. Please wait a moment and try again.');
+        } else if (msg.includes('user not found')) {
+          setError('No account found with this email. Please sign up first.');
+        } else if (msg.includes('disabled') || msg.includes('banned')) {
+          setError('This account has been disabled. Please contact support.');
+        } else {
+          setError(signInError.message || 'Login failed. Please try again.');
+        }
         return;
       }
 
       router.push('/');
       router.refresh();
     } catch {
-      setError('Login failed. Please try again.');
+      setError('Connection failed. Please check your internet and try again.');
     } finally {
       setLoading(false);
     }

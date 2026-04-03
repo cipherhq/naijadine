@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface PendingRestaurant {
   id: string;
@@ -20,6 +21,7 @@ interface PendingRestaurant {
 }
 
 export default function ApprovalsPage() {
+  const { verified } = useAdminGuard();
   const [pending, setPending] = useState<PendingRestaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -76,18 +78,21 @@ export default function ApprovalsPage() {
   }
 
   useEffect(() => {
-    fetchPending();
-  }, []);
+    if (verified) fetchPending();
+  }, [verified]);
 
   async function approve(id: string) {
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     await supabase.from('restaurants').update({ status: 'approved' }).eq('id', id);
 
-    // Create audit log
     await supabase.from('audit_logs').insert({
       action: 'restaurant_approved',
       entity_type: 'restaurant',
       entity_id: id,
+      user_id: user.id,
       details: { status: 'approved' },
     });
 
@@ -97,6 +102,9 @@ export default function ApprovalsPage() {
   async function reject(id: string) {
     if (!rejectionReason) return;
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     await supabase
       .from('restaurants')
       .update({ status: 'rejected', rejection_reason: rejectionReason })
@@ -106,6 +114,7 @@ export default function ApprovalsPage() {
       action: 'restaurant_rejected',
       entity_type: 'restaurant',
       entity_id: id,
+      user_id: user.id,
       details: { status: 'rejected', reason: rejectionReason },
     });
 
@@ -114,7 +123,7 @@ export default function ApprovalsPage() {
     fetchPending();
   }
 
-  if (loading) {
+  if (!verified || loading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />

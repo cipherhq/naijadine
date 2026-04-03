@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface Deal {
   id: string;
@@ -16,6 +17,7 @@ interface Deal {
 }
 
 export default function PromotionsPage() {
+  const { verified } = useAdminGuard();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'active' | 'expired' | 'all'>('active');
@@ -60,9 +62,9 @@ export default function PromotionsPage() {
   }
 
   useEffect(() => {
-    fetchDeals();
+    if (verified) fetchDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, verified]);
 
   async function toggleActive(id: string, current: boolean) {
     const supabase = createClient();
@@ -95,7 +97,7 @@ export default function PromotionsPage() {
         ))}
       </div>
 
-      {loading ? (
+      {!verified || loading ? (
         <div className="mt-8 flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent" />
         </div>
