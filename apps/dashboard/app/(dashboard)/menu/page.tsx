@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
 
@@ -33,6 +33,47 @@ export default function MenuPage() {
   const [newCatName, setNewCatName] = useState('');
   const [addingItemTo, setAddingItemTo] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({ name: '', description: '', price: 0 });
+  const [uploading, setUploading] = useState(false);
+  const [menuFileUrl, setMenuFileUrl] = useState<string | null>((restaurant as any).menu_url || null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function uploadMenuFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+
+    const ext = file.name.split('.').pop();
+    const path = `${restaurant.id}/menu_${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('menu-files')
+      .upload(path, file, { contentType: file.type });
+
+    if (uploadError) {
+      console.error('Upload failed:', uploadError);
+      setUploading(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('menu-files').getPublicUrl(path);
+
+    await supabase
+      .from('restaurants')
+      .update({ menu_url: urlData.publicUrl })
+      .eq('id', restaurant.id);
+
+    setMenuFileUrl(urlData.publicUrl);
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  async function removeMenuFile() {
+    await supabase
+      .from('restaurants')
+      .update({ menu_url: null })
+      .eq('id', restaurant.id);
+    setMenuFileUrl(null);
+  }
 
   async function fetchMenu() {
     const { data: cats } = await supabase
@@ -122,8 +163,43 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* Upload menu file (PDF/Image) */}
+      <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="font-semibold text-gray-900">Menu File</h3>
+        <p className="mt-1 text-sm text-gray-500">Upload your menu as a PDF or image. Diners will see this on your restaurant page.</p>
+
+        {menuFileUrl ? (
+          <div className="mt-3 flex items-center gap-4">
+            <a href={menuFileUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-brand hover:bg-gray-50">
+              📄 View Current Menu
+            </a>
+            <button onClick={removeMenuFile} className="text-sm text-red-500 hover:underline">Remove</button>
+          </div>
+        ) : (
+          <div className="mt-3">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,image/jpeg,image/png,image/webp"
+              onChange={uploadMenuFile}
+              className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-600"
+            />
+            {uploading && (
+              <span className="ml-2 text-sm text-gray-500">Uploading...</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <div className="h-px flex-1 bg-gray-200" />
+        <span className="text-xs text-gray-400">OR build your menu below</span>
+        <div className="h-px flex-1 bg-gray-200" />
+      </div>
+
       {/* Add category */}
-      <div className="mt-6 flex gap-2">
+      <div className="mt-4 flex gap-2">
         <input
           type="text"
           value={newCatName}
