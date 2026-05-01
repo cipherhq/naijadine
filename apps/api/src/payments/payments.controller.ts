@@ -12,6 +12,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { PaymentsService } from './payments.service';
 import { InitializePaymentDto } from './dto/initialize-payment.dto';
@@ -37,6 +38,7 @@ export class PaymentsController {
 
   @Public()
   @Post('webhook')
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async webhook(
     @Req() req: RawBodyRequest<Request>,
@@ -62,10 +64,12 @@ export class PaymentsController {
     return { received: true };
   }
 
-  @Public()
   @Get('verify/:reference')
-  async verify(@Param('reference') reference: string) {
-    return this.paymentsService.verifyPayment(reference);
+  async verify(
+    @Param('reference') reference: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.paymentsService.verifyPayment(reference, userId);
   }
 
   @Post('refund')

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRestaurant, useDashboard } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { CUISINE_TYPES } from '@naijadine/shared';
+import { CUISINE_TYPES } from '@dineroot/shared';
 
 const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 

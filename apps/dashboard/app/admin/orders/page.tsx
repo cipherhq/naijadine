@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira } from '@dineroot/shared';
 
 type Tab = 'reservations' | 'food_orders';
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira } from '@dineroot/shared';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -21,7 +21,7 @@ const PURCHASE_CATEGORIES = new Set([
   'logistics', 'bakery', 'church', 'cinema', 'events', 'shop',
 ]);
 
-const CHART_COLORS = ['#1B4332', '#2D6A4F', '#40916C', '#52B788', '#74C69D', '#95D5B2'];
+const CHART_COLORS = ['#F04E37', '#D93A24', '#B42E1C', '#F47A69', '#E8A817', '#FACBC3'];
 
 type Period = '7d' | '30d' | '90d';
 
@@ -466,7 +466,7 @@ export default function AnalyticsPage() {
                   formatter={(value: number) => [formatNaira(value), 'Revenue']}
                   labelFormatter={formatDate}
                 />
-                <Line type="monotone" dataKey="revenue" stroke="#1B4332" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="revenue" stroke="#F04E37" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -487,7 +487,7 @@ export default function AnalyticsPage() {
                   formatter={(value: number) => [value, activityLabel]}
                   labelFormatter={formatDate}
                 />
-                <Bar dataKey="count" fill="#2D6A4F" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#D93A24" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -541,7 +541,7 @@ export default function AnalyticsPage() {
                   <XAxis type="number" tickFormatter={(v: number) => `₦${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value: number) => [formatNaira(value), 'Revenue']} />
-                  <Bar dataKey="revenue" fill="#40916C" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="revenue" fill="#F04E37" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

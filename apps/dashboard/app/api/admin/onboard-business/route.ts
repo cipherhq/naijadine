@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { generateSlug, generateBotCode } from '@naijadine/shared';
+import { generateSlug, generateBotCode } from '@dineroot/shared';
 
 const ADMIN_ROLES = ['admin', 'super_admin'];
 

@@ -5,7 +5,7 @@ import { GupshupService } from '../notifications/channels/gupshup.service';
 import { ResendEmailService } from '../notifications/channels/resend.service';
 import { StandaloneService } from './standalone.service';
 import { BotIntelligenceService, BusinessCategory, AbuseResult } from './bot-intelligence.service';
-import { CITIES, CUISINE_TYPES, BOOKING_DEFAULTS, ORDER_DEFAULTS, generateTimeSlots, formatNaira } from '@naijadine/shared';
+import { CITIES, CUISINE_TYPES, BOOKING_DEFAULTS, ORDER_DEFAULTS, generateTimeSlots, formatNaira } from '@dineroot/shared';
 import { randomUUID } from 'crypto';
 
 type BotStep =
@@ -370,9 +370,9 @@ export class BotService {
           });
         }
 
-        // Add NaijaDine branding for non-whitelabel (Starter plan)
+        // Add DineRoot branding for non-whitelabel (Starter plan)
         if (!tierInfo.isWhitelabel) {
-          greeting += '\n\n_Powered by NaijaDine_';
+          greeting += '\n\n_Powered by DineRoot_';
         }
 
         // Check tier limits before proceeding
@@ -462,7 +462,7 @@ export class BotService {
       }
 
       // New user
-      await this.sendText(from, `Welcome to NaijaDine! 🍽️\n\nDiscover and book the best restaurants in Nigeria.\n\nLet's find you a table!`);
+      await this.sendText(from, `Welcome to DineRoot! 🍽️\n\nDiscover and book the best restaurants in Nigeria.\n\nLet's find you a table!`);
       await this.handleCitySelection(session, from, '');
       return;
     }
@@ -1950,7 +1950,7 @@ export class BotService {
           `🔑 Ref: *${reservation.reference_code}*`,
           ``,
           `💳 Deposit of ₦${totalDeposit.toLocaleString()} required.`,
-          `Please visit naijadine.com to complete payment.`,
+          `Please visit dineroot.com to complete payment.`,
         ].join('\n'));
       }
     } else {
@@ -1971,7 +1971,7 @@ export class BotService {
           reference_code: reservation.reference_code,
         });
         if (!tierInfo.isWhitelabel) {
-          message += '\n\n_Powered by NaijaDine_';
+          message += '\n\n_Powered by DineRoot_';
         }
       } else {
         message = [
@@ -2079,11 +2079,11 @@ export class BotService {
 
     const html = `
       <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;background:#fff;">
-        <div style="background:#1B4332;padding:24px;text-align:center;">
-          <h1 style="color:#fff;margin:0;font-size:22px;">NaijaDine</h1>
+        <div style="background:#F04E37;padding:24px;text-align:center;">
+          <h1 style="color:#fff;margin:0;font-size:22px;">DineRoot</h1>
         </div>
         <div style="padding:24px;">
-          <h2 style="color:#1B4332;margin:0 0 8px;">Booking Confirmed! ✓</h2>
+          <h2 style="color:#F04E37;margin:0 0 8px;">Booking Confirmed! ✓</h2>
           <p style="color:#444;margin:0 0 20px;">Hi ${firstName}, your reservation is all set.</p>
           <table style="width:100%;border-collapse:collapse;background:#f8f9fa;border-radius:8px;padding:16px;">
             <tr><td style="padding:8px 0;color:#666;">Restaurant</td><td style="padding:8px 0;font-weight:600;">${restaurantName}</td></tr>
@@ -2091,12 +2091,12 @@ export class BotService {
             <tr><td style="padding:8px 0;color:#666;">Time</td><td style="padding:8px 0;font-weight:600;">${time}</td></tr>
             <tr><td style="padding:8px 0;color:#666;">Guests</td><td style="padding:8px 0;font-weight:600;">${partySize}</td></tr>
             ${depositLine}
-            <tr><td style="padding:8px 0;color:#666;">Reference</td><td style="padding:8px 0;font-weight:700;color:#1B4332;">${referenceCode}</td></tr>
+            <tr><td style="padding:8px 0;color:#666;">Reference</td><td style="padding:8px 0;font-weight:700;color:#F04E37;">${referenceCode}</td></tr>
           </table>
           <p style="color:#888;font-size:13px;margin:20px 0 0;">Show your reference code at the restaurant. Enjoy your meal!</p>
         </div>
         <div style="background:#f8f9fa;padding:16px;text-align:center;color:#999;font-size:12px;">
-          NaijaDine — Discover & book the best restaurants in Nigeria
+          DineRoot — Discover & book the best restaurants in Nigeria
         </div>
       </div>
     `;
@@ -2128,7 +2128,7 @@ export class BotService {
     const idempotencyKey = randomUUID();
     const amountInKobo = amount * 100;
     // Use real email if available, fallback to generated one
-    const email = userEmail || `${phone.replace('+', '')}@whatsapp.naijadine.com`;
+    const email = userEmail || `${phone.replace('+', '')}@whatsapp.dineroot.com`;
 
     try {
       if (!this.paystackSecretKey) {
@@ -2148,7 +2148,7 @@ export class BotService {
           metadata: { reservation_ref: referenceCode, channel: 'whatsapp' },
         });
 
-        return { url: `https://naijadine.com/pay?ref=${mockRef}`, reference: mockRef };
+        return { url: `https://dineroot.com/pay?ref=${mockRef}`, reference: mockRef };
       }
 
       const response = await fetch('https://api.paystack.co/transaction/initialize', {
@@ -3377,7 +3377,7 @@ export class BotService {
         `🔑 Ref: *${order.reference_code}*`,
         ``,
         `💳 Total: ${formatNaira(total)}`,
-        `Please visit naijadine.com to complete payment.`,
+        `Please visit dineroot.com to complete payment.`,
       ].join('\n'));
     }
   }
@@ -3396,7 +3396,7 @@ export class BotService {
     const supabase = this.supabaseService.getClient();
     const idempotencyKey = randomUUID();
     const amountInKobo = amount * 100;
-    const email = userEmail || `${phone.replace('+', '')}@whatsapp.naijadine.com`;
+    const email = userEmail || `${phone.replace('+', '')}@whatsapp.dineroot.com`;
 
     try {
       if (!this.paystackSecretKey) {
@@ -3417,7 +3417,7 @@ export class BotService {
           metadata: { order_ref: referenceCode, channel: 'whatsapp' },
         });
 
-        return { url: `https://naijadine.com/pay?ref=${mockRef}`, reference: mockRef };
+        return { url: `https://dineroot.com/pay?ref=${mockRef}`, reference: mockRef };
       }
 
       const response = await fetch('https://api.paystack.co/transaction/initialize', {

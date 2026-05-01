@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { formatNaira, formatTime } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@dineroot/shared';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'My Bookings — NaijaDine' };
+export const metadata: Metadata = { title: 'My Bookings — DineRoot' };
 
 export default async function BookingsPage() {
   const supabase = await createClient();

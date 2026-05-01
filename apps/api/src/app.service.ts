@@ -20,7 +20,7 @@ export class AppService {
 
     return {
       status: 'ok',
-      service: 'naijadine-api',
+      service: 'dineroot-api',
       database: dbStatus,
       timestamp: new Date().toISOString(),
     };

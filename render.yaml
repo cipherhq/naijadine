@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: naijadine-api
+    name: dineroot-api
     runtime: node
     region: oregon
     rootDir: .
@@ -38,4 +38,6 @@ services:
       - key: MEILISEARCH_HOST
         sync: false
       - key: MEILISEARCH_API_KEY
+        sync: false
+      - key: SENTRY_DSN
         sync: false

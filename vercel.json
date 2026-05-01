@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx turbo run build --filter=@naijadine/web",
+  "buildCommand": "npx turbo run build --filter=@dineroot/web",
   "outputDirectory": "apps/web/.next",
   "framework": "nextjs"
 }

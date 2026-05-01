@@ -1,5 +1,5 @@
 {
-  "name": "naijadine",
+  "name": "dineroot",
   "private": true,
   "workspaces": [
     "apps/*",

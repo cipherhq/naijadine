@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { PRICING } from '@naijadine/shared';
+import { PRICING } from '@dineroot/shared';
 
 // Paystack payment page slugs (from paystack.com/buy/<slug>)
 const PLAN_PAGE_SLUGS: Record<string, string | undefined> = {
@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const email = profile?.email || `${(profile?.phone || user.id).replace('+', '')}@whatsapp.naijadine.com`;
-    const callbackUrl = `${(process.env.NEXT_PUBLIC_APP_URL || 'https://naijadine.com').trim()}/get-started?step=success&restaurant_id=${restaurant_id}`;
+    const email = profile?.email || `${(profile?.phone || user.id).replace('+', '')}@whatsapp.dineroot.com`;
+    const callbackUrl = `${(process.env.NEXT_PUBLIC_APP_URL || 'https://dineroot.com').trim()}/get-started?step=success&restaurant_id=${restaurant_id}`;
 
     // If a Paystack payment page slug is configured, redirect to it directly
     if (pageSlug && !pageSlug.startsWith('PLN_')) {
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { message: 'Internal server error', error: (error as Error).message },
+      { message: 'Internal server error' },
       { status: 500 },
     );
   }

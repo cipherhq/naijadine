@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira } from '@dineroot/shared';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface PlatformStats {
@@ -30,7 +30,7 @@ export default function AdminDashboard() {
       const supabase = createClient();
       const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
 
-      const [restaurants, pendingRes, users, bookings, monthBookings, payments, monthPayments, recent] =
+      const [restaurants, pendingRes, users, bookings, monthBookings, payments, monthPayments, recent, pendingClaims, cityBreakdown] =
         await Promise.all([
           supabase.from('restaurants').select('id, status', { count: 'exact', head: false }),
           supabase.from('restaurants').select('id', { count: 'exact', head: true }).eq('status', 'pending_review'),
@@ -44,6 +44,8 @@ export default function AdminDashboard() {
             .select('id, reference_code, guest_name, date, status, restaurants (name)')
             .order('created_at', { ascending: false })
             .limit(10),
+          supabase.from('restaurant_claims').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('restaurants').select('city').in('status', ['active', 'approved']),
         ]);
 
       const active = (restaurants.data || []).filter((r) => ['active', 'approved'].includes(r.status)).length;
@@ -95,7 +97,7 @@ export default function AdminDashboard() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900">Platform Overview</h1>
-      <p className="mt-1 text-sm text-gray-500">NaijaDine admin dashboard</p>
+      <p className="mt-1 text-sm text-gray-500">DineRoot admin dashboard</p>
 
       {/* KPI cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

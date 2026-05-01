@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { CITIES, CUISINE_TYPES, PRICING, formatNaira } from '@naijadine/shared';
+import { CITIES, CUISINE_TYPES, PRICING, formatNaira } from '@dineroot/shared';
 
 type Step = 'plan' | 'info' | 'gupshup' | 'done';
 
@@ -187,7 +187,7 @@ export default function WhatsAppOnboardingPage() {
                   <p className="mt-1 text-2xl font-bold text-brand">{formatNaira(t.price!)}<span className="text-sm font-normal text-gray-500">/mo</span></p>
                   <ul className="mt-3 space-y-1.5 text-sm text-gray-600">
                     <li>{t.maxBookings === Infinity ? 'Unlimited' : t.maxBookings} bookings/mo</li>
-                    <li>{t.whitelabel ? 'White-label (your brand)' : 'NaijaDine branded'}</li>
+                    <li>{t.whitelabel ? 'White-label (your brand)' : 'DineRoot branded'}</li>
                     <li>Guest management</li>
                     <li>Reservation dashboard</li>
                   </ul>
@@ -340,7 +340,7 @@ export default function WhatsAppOnboardingPage() {
 
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
             <strong>Need help?</strong> Our team can help you set up your Gupshup account and WhatsApp Business number.
-            Contact us at <span className="font-medium">support@naijadine.com</span>
+            Contact us at <span className="font-medium">support@dineroot.com</span>
           </div>
 
           <div className="flex gap-3">

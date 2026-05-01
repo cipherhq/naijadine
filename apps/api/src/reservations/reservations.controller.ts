@@ -70,6 +70,15 @@ export class ReservationsController {
     return this.reservationsService.update(id, dto, userId);
   }
 
+  @Put(':id/modify')
+  async modify(
+    @Param('id') id: string,
+    @Body() body: { date?: string; time?: string; party_size?: number },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.reservationsService.modify(id, userId, body);
+  }
+
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
   async cancel(

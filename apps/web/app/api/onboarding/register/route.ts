@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { generateSlug, generateBotCode, CITIES, BUSINESS_CATEGORY_KEYS, getDefaultGreeting } from '@naijadine/shared';
+import { generateSlug, generateBotCode, CITIES, BUSINESS_CATEGORY_KEYS, getDefaultGreeting } from '@dineroot/shared';
 
 const VALID_PLANS = ['starter', 'professional'] as const;
 const VALID_CITIES = Object.keys(CITIES);
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { message: 'Internal server error', error: (error as Error).message },
+      { message: 'Internal server error' },
       { status: 500 },
     );
   }

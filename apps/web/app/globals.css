@@ -4,12 +4,22 @@
 
 @layer base {
   :root {
-    --brand: 152 44% 18%;
+    --brand: 7 86% 58%;
     --gold: 42 85% 50%;
   }
 
   body {
     @apply text-gray-900 bg-white;
+  }
+
+  /* Visible focus rings for keyboard users */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+
+  /* Skip to main content link */
+  .skip-link {
+    @apply absolute -top-12 left-4 z-[200] rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all focus:top-4;
   }
 }
 
@@ -17,4 +27,72 @@
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Button press feedback */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Smooth card hover lift */
+.card-hover {
+  @apply transition-all duration-200;
+}
+.card-hover:hover {
+  @apply shadow-lg -translate-y-0.5;
+}
+
+/* Scroll reveal animation */
+@keyframes fade-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+
+/* Stagger children */
+.stagger-children > * {
+  animation: fade-up 0.4s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+
+/* Toast animations */
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-in.slide-in-from-right {
+  animation: slide-in-from-right 0.3s ease-out;
+}
+
+/* CMS page content styles */
+.prose-pages {
+  @apply space-y-6 text-sm leading-relaxed text-gray-600;
+}
+.prose-pages h2 {
+  @apply text-lg font-semibold text-gray-900 mt-8;
+}
+.prose-pages h3 {
+  @apply text-base font-medium text-gray-900 mt-6;
+}
+.prose-pages p {
+  @apply mt-3;
+}
+.prose-pages ul {
+  @apply mt-3 list-disc space-y-2 pl-5;
+}
+.prose-pages li {
+  @apply text-gray-600;
+}
+.prose-pages strong {
+  @apply font-semibold text-gray-700;
+}
+.prose-pages a {
+  @apply text-brand hover:underline;
 }

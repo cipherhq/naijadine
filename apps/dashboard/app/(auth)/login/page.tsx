@@ -100,6 +100,18 @@ export default function DashboardLoginPage() {
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
       </form>
+
+      <div className="mt-6 text-center text-sm text-gray-500">
+        <p>Don&apos;t have an account?</p>
+        <div className="mt-2 flex flex-col gap-2">
+          <a href="/claim" className="font-medium text-brand hover:underline">
+            Claim your existing restaurant &rarr;
+          </a>
+          <a href="/onboarding" className="font-medium text-gray-600 hover:underline">
+            Register a new restaurant
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

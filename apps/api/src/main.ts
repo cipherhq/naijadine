@@ -1,10 +1,30 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import * as compression from 'compression';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
+// Sentry error tracking (only when SENTRY_DSN is set and package installed)
+if (process.env.SENTRY_DSN) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      tracesSampleRate: 0.1,
+    });
+    console.log('Sentry initialized');
+  } catch {
+    console.log('Sentry package not installed — skipping');
+  }
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Compression
+  app.use(compression());
 
   // Security headers
   app.use(helmet());
@@ -14,8 +34,8 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
-      'https://naijadine.com',
-      'https://dashboard.naijadine.com',
+      'https://dineroot.com',
+      'https://dashboard.dineroot.com',
       /\.onrender\.com$/,
     ],
     credentials: true,
@@ -40,6 +60,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3002;
   await app.listen(port);
-  console.log(`NaijaDine API running on port ${port}`);
+  console.log(`DineRoot API running on port ${port}`);
 }
 bootstrap();

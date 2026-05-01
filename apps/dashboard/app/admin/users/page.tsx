@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
-import { CITIES } from '@naijadine/shared';
+import { CITIES } from '@dineroot/shared';
 
 interface User {
   id: string;

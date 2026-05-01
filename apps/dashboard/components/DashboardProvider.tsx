@@ -28,6 +28,7 @@ export interface Restaurant {
   cancellation_hours: number;
   status: string;
   product_type: string;
+  has_whatsapp_bot: boolean;
   business_category: string | null;
   payment_gateway: string | null;
   gateway_subaccount_code: string | null;

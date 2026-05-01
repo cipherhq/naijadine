@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira, formatTime } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@dineroot/shared';
+import { InsightCards } from '@/components/InsightCards';
+import { ProfileCompletion } from '@/components/ProfileCompletion';
 
 interface Reservation {
   id: string;
@@ -119,6 +121,12 @@ export default function DashboardOverview() {
 
   return (
     <div>
+      {/* Profile completion wizard */}
+      <ProfileCompletion />
+
+      {/* Actionable insights */}
+      <InsightCards />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira } from '@dineroot/shared';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface PaymentRow {

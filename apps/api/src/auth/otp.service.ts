@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
   private readonly apiKey: string;
-  private readonly senderId = 'NaijaDine';
+  private readonly senderId = 'DineRoot';
 
   // In-memory rate limiting (replace with Redis in production)
   private sendAttempts = new Map<string, { count: number; windowStart: number }>();
@@ -57,7 +57,7 @@ export class OtpService {
           pin_length: 6,
           pin_placeholder: '< 1234 >',
           message_text:
-            'Your NaijaDine verification code is < 1234 >. Expires in 5 minutes.',
+            'Your DineRoot verification code is < 1234 >. Expires in 5 minutes.',
           pin_type: 'NUMERIC',
         }),
       });

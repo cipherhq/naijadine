@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { PRICING, formatNaira } from '@naijadine/shared';
+import { PRICING, formatNaira } from '@dineroot/shared';
 
 interface WhatsAppConfig {
   gupshup_app_id: string;
@@ -188,7 +188,7 @@ export default function WhatsAppConfigPage() {
               Configure this URL in your Gupshup App webhook settings:
             </p>
             <code className="mt-2 block rounded bg-white px-3 py-2 text-xs text-gray-800">
-              https://api.naijadine.com/api/v1/webhook/whatsapp
+              https://api.dineroot.com/api/v1/webhook/whatsapp
             </code>
           </div>
 
@@ -211,7 +211,7 @@ export default function WhatsAppConfigPage() {
               Customize the messages your bot sends to guests.
               {!isWhitelabelAllowed && (
                 <span className="ml-1 text-orange-600">
-                  Upgrade to Professional to remove NaijaDine branding.
+                  Upgrade to Professional to remove DineRoot branding.
                 </span>
               )}
             </p>
@@ -222,7 +222,7 @@ export default function WhatsAppConfigPage() {
               <label className="block text-sm font-medium text-gray-700">
                 Greeting Message
                 {!isWhitelabelAllowed && (
-                  <span className="ml-2 text-xs text-orange-500">(NaijaDine branding included on Starter)</span>
+                  <span className="ml-2 text-xs text-orange-500">(DineRoot branding included on Starter)</span>
                 )}
               </label>
               <textarea

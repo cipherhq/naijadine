@@ -37,8 +37,23 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (!payment) {
+      // Check if payment exists for a different user (vs not existing at all)
+      const service = createServiceClient();
+      const { data: anyPayment } = await service
+        .from('payments')
+        .select('id')
+        .eq('gateway_reference', reference)
+        .maybeSingle();
+
+      if (anyPayment) {
+        return NextResponse.json(
+          { message: 'Payment not found for this account. Please sign in with the account you used to make the payment.' },
+          { status: 404 },
+        );
+      }
+
       return NextResponse.json(
-        { message: 'Payment not found' },
+        { message: 'No payment with this reference exists. The payment may not have been initialized.' },
         { status: 404 },
       );
     }

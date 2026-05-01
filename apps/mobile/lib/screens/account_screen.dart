@@ -253,7 +253,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
             const SizedBox(height: 32),
             const Text(
-              'NaijaDine v1.0.0',
+              'DineRoot v1.0.0',
               style: TextStyle(fontSize: 11, color: AppTheme.textTertiary),
             ),
             const SizedBox(height: 24),

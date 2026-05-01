@@ -128,7 +128,7 @@ export function StandaloneSidebar() {
           W
         </div>
         <div>
-          <span className="text-lg font-bold text-gray-900">NaijaDine</span>
+          <span className="text-lg font-bold text-gray-900">DineRoot</span>
           <span className="ml-1.5 rounded bg-[#25D366]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#25D366]">
             WhatsApp
           </span>

@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Deals & Promotions — NaijaDine',
+  title: 'Deals & Promotions — DineRoot',
   description: 'Discover the best restaurant deals and discounts across Lagos, Abuja, and Port Harcourt.',
 };
 

@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════
-// NaijaDine Shared Constants
+// DineRoot Shared Constants
 // Used across web, dashboard, api, and mobile apps
 // ═══════════════════════════════════════════════════════
 
-export const APP_NAME = 'NaijaDine';
+export const APP_NAME = 'DineRoot';
 export const APP_TAGLINE = 'Discover. Reserve. Dine.';
-export const BOOKING_REF_PREFIX = 'ND';
+export const BOOKING_REF_PREFIX = 'DR';
 export const ORDER_REF_PREFIX = 'FO';
 
 // ── Category-Specific Reference Prefixes ──
@@ -45,18 +45,102 @@ export const ORDER_DEFAULTS = {
 
 // ── Cities & Neighborhoods ──
 export const CITIES = {
+  // ── Nigeria ──
   lagos: {
     name: 'Lagos',
-    neighborhoods: ['Victoria Island', 'Ikoyi', 'Lekki Phase 1', 'Lekki Phase 2', 'Ikeja GRA', 'Yaba', 'Surulere', 'Ajah', 'Maryland', 'Magodo'],
+    country: 'NG',
+    neighborhoods: ['Victoria Island', 'Ikoyi', 'Lekki Phase 1', 'Lekki Phase 2', 'Ikeja GRA', 'Yaba', 'Surulere', 'Ajah', 'Maryland', 'Magodo', 'Banana Island', 'Eko Atlantic', 'Gbagada', 'Anthony Village'],
   },
   abuja: {
     name: 'Abuja',
-    neighborhoods: ['Wuse', 'Wuse 2', 'Maitama', 'Garki', 'Asokoro', 'Jabi', 'Gwarinpa', 'Utako', 'Central Area', 'Katampe'],
+    country: 'NG',
+    neighborhoods: ['Wuse', 'Wuse 2', 'Maitama', 'Garki', 'Asokoro', 'Jabi', 'Gwarinpa', 'Utako', 'Central Area', 'Katampe', 'Life Camp', 'Lugbe'],
   },
   port_harcourt: {
     name: 'Port Harcourt',
+    country: 'NG',
     neighborhoods: ['GRA Phase 1', 'GRA Phase 2', 'Trans-Amadi', 'Old GRA', 'Rumuola', 'Elekahia', 'Rumuokwurusi', 'Peter Odili Road'],
   },
+  ibadan: {
+    name: 'Ibadan',
+    country: 'NG',
+    neighborhoods: ['Bodija', 'Ring Road', 'Dugbe', 'UI Area', 'Oluyole', 'Challenge', 'Jericho', 'Alalubosa'],
+  },
+  enugu: {
+    name: 'Enugu',
+    country: 'NG',
+    neighborhoods: ['Independence Layout', 'New Haven', 'GRA', 'Trans-Ekulu', 'Achara Layout', 'Ogui Road'],
+  },
+  calabar: {
+    name: 'Calabar',
+    country: 'NG',
+    neighborhoods: ['State Housing', 'Marian Road', 'Satellite Town', 'Diamond Hill', 'Ekpo Abasi'],
+  },
+  benin: {
+    name: 'Benin City',
+    country: 'NG',
+    neighborhoods: ['GRA', 'Ring Road', 'Uselu', 'Ugbowo', 'Sapele Road', 'Airport Road'],
+  },
+  kano: {
+    name: 'Kano',
+    country: 'NG',
+    neighborhoods: ['Nassarawa GRA', 'Bompai', 'Zoo Road', 'Ibrahim Taiwo Road', 'Sabon Gari'],
+  },
+  // ── Ghana ──
+  accra: {
+    name: 'Accra',
+    country: 'GH',
+    neighborhoods: ['Osu', 'East Legon', 'Airport Residential', 'Cantonments', 'Labone', 'Ridge', 'Dzorwulu', 'Spintex Road', 'Tema'],
+  },
+  kumasi: {
+    name: 'Kumasi',
+    country: 'GH',
+    neighborhoods: ['Ahodwo', 'Bantama', 'Nhyiaeso', 'Adum', 'Danyame', 'Ridge'],
+  },
+  // ── Kenya ──
+  nairobi: {
+    name: 'Nairobi',
+    country: 'KE',
+    neighborhoods: ['Westlands', 'Karen', 'Kilimani', 'Lavington', 'Hurlingham', 'Gigiri', 'Kileleshwa', 'CBD', 'Langata'],
+  },
+  mombasa: {
+    name: 'Mombasa',
+    country: 'KE',
+    neighborhoods: ['Nyali', 'Bamburi', 'Diani', 'Old Town', 'Shanzu', 'Mtwapa'],
+  },
+  // ── South Africa ──
+  johannesburg: {
+    name: 'Johannesburg',
+    country: 'ZA',
+    neighborhoods: ['Sandton', 'Rosebank', 'Braamfontein', 'Melville', 'Parkhurst', 'Fourways', 'Maboneng', 'Greenside'],
+  },
+  cape_town: {
+    name: 'Cape Town',
+    country: 'ZA',
+    neighborhoods: ['Camps Bay', 'Clifton', 'Waterfront', 'Gardens', 'Sea Point', 'Stellenbosch', 'Franschhoek', 'Constantia'],
+  },
+  // ── Tanzania ──
+  dar_es_salaam: {
+    name: 'Dar es Salaam',
+    country: 'TZ',
+    neighborhoods: ['Masaki', 'Oysterbay', 'Mikocheni', 'Msasani', 'Kariakoo', 'Upanga'],
+  },
+  // ── Rwanda ──
+  kigali: {
+    name: 'Kigali',
+    country: 'RW',
+    neighborhoods: ['Kiyovu', 'Kimihurura', 'Nyarutarama', 'Remera', 'Kacyiru', 'Gisozi'],
+  },
+} as const;
+
+// ── Countries served ──
+export const COUNTRIES = {
+  NG: { name: 'Nigeria', currency: 'NGN', flag: '🇳🇬' },
+  GH: { name: 'Ghana', currency: 'GHS', flag: '🇬🇭' },
+  KE: { name: 'Kenya', currency: 'KES', flag: '🇰🇪' },
+  ZA: { name: 'South Africa', currency: 'ZAR', flag: '🇿🇦' },
+  TZ: { name: 'Tanzania', currency: 'TZS', flag: '🇹🇿' },
+  RW: { name: 'Rwanda', currency: 'RWF', flag: '🇷🇼' },
 } as const;
 
 // ── Cuisine Types ──
@@ -85,6 +169,12 @@ export const PRICING = {
     professional: { name: 'Professional', price: 35_000, maxBookings: Infinity, whitelabel: true },
     enterprise: { name: 'Enterprise', price: null, maxBookings: Infinity, whitelabel: true },
   },
+} as const;
+
+// ── WhatsApp Bot Product ──
+export const WHATSAPP_BOT = {
+  name: 'DineRoot WhatsApp',
+  tagline: 'WhatsApp automation for every business.',
 } as const;
 
 // ── Platform Fees ──
@@ -171,8 +261,8 @@ export function formatTime(time24: string): string {
 
 // ── Brand Colors ──
 export const COLORS = {
-  brand: '#1B4332',
-  accent: '#2D6A4F',
+  brand: '#F04E37',
+  accent: '#D93A24',
   gold: '#E8A817',
   orange: '#E07F00',
   success: '#10B981',
@@ -265,3 +355,5 @@ export function generateBotCode(name: string): string {
     .replace(/-+/g, '-')
     .slice(0, 30);
 }
+
+export { t, LOCALES, type Locale } from './i18n';

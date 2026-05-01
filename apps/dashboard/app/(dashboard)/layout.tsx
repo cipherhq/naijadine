@@ -15,18 +15,7 @@ export default async function DashboardLayout({
 
   if (!user) redirect('/login');
 
-  // Admins/super_admins go straight to admin panel — they don't need a restaurant
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile && ['admin', 'super_admin'].includes(profile.role)) {
-    redirect('/admin');
-  }
-
-  // Fetch the user's restaurant
+  // Fetch the user's restaurant (admins who own a restaurant can see the dashboard too)
   const { data: restaurant } = await supabase
     .from('restaurants')
     .select('*')
@@ -34,7 +23,19 @@ export default async function DashboardLayout({
     .in('status', ['active', 'approved', 'pending'])
     .single();
 
-  if (!restaurant) redirect('/onboarding');
+  if (!restaurant) {
+    // Admins with no restaurant go to admin panel
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profile && ['admin', 'super_admin'].includes(profile.role)) {
+      redirect('/admin');
+    }
+    redirect('/onboarding');
+  }
 
   // Redirect WhatsApp-only restaurants to standalone dashboard
   if (restaurant.product_type === 'whatsapp_standalone') {

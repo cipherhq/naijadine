@@ -71,6 +71,7 @@ export interface Database {
           instagram_handle: string | null;
           gupshup_app_id: string | null;
           whatsapp_phone_number_id: string | null;
+          has_whatsapp_bot: boolean;
           approved_at: string | null;
           approved_by: string | null;
           created_at: string;

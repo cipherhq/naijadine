@@ -17,7 +17,7 @@ Future<void> main() async {
   runApp(
     ChangeNotifierProvider(
       create: (_) => AuthService(),
-      child: const NaijaDineApp(),
+      child: const DineRootApp(),
     ),
   );
 }

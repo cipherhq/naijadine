@@ -4,12 +4,13 @@ import { BotService } from './bot.service';
 import { BotIntelligenceService } from './bot-intelligence.service';
 import { StandaloneController } from './standalone.controller';
 import { StandaloneService } from './standalone.service';
+import { BotCleanupCronService } from './bot-cleanup-cron.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [NotificationsModule],
   controllers: [BotController, StandaloneController],
-  providers: [BotService, BotIntelligenceService, StandaloneService],
+  providers: [BotService, BotIntelligenceService, StandaloneService, BotCleanupCronService],
   exports: [StandaloneService],
 })
 export class WhatsAppBotModule {}

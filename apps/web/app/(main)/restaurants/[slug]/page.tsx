@@ -2,8 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { formatNaira, formatTime } from '@naijadine/shared';
+import { formatNaira, formatTime } from '@dineroot/shared';
 import { FavoriteButton } from '@/components/FavoriteButton';
+import { PhotoGallery } from '@/components/PhotoGallery';
+import { MapView } from '@/components/MapView';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -19,6 +22,7 @@ export async function generateStaticParams() {
     .from('restaurants')
     .select('slug')
     .in('status', ['active', 'approved'])
+    .eq('product_type', 'marketplace')
     .limit(100);
   return (data || []).map((r) => ({ slug: r.slug }));
 }
@@ -32,6 +36,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     .select('name, description, cuisine_types, neighborhood, city, cover_photo_url')
     .eq('slug', slug)
     .in('status', ['active', 'approved'])
+    .eq('product_type', 'marketplace')
     .single();
 
   if (!restaurant) {
@@ -46,25 +51,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     restaurant.description ||
     `Book a table at ${restaurant.name}. ${cuisines} restaurant in ${restaurant.neighborhood}, ${(restaurant.city as string).replace(/_/g, ' ')}.`;
 
-  const url = `https://naijadine.com/restaurants/${slug}`;
+  const url = `https://dineroot.com/restaurants/${slug}`;
 
   return {
-    title: `${restaurant.name} — Book a Table | NaijaDine`,
+    title: `${restaurant.name} — Book a Table | DineRoot`,
     description,
     alternates: { canonical: url },
     openGraph: {
       type: 'website',
       url,
-      title: `${restaurant.name} — Book a Table | NaijaDine`,
+      title: `${restaurant.name} — Book a Table | DineRoot`,
       description,
-      siteName: 'NaijaDine',
+      siteName: 'DineRoot',
       images: restaurant.cover_photo_url
         ? [{ url: restaurant.cover_photo_url, width: 1200, height: 630, alt: restaurant.name }]
         : [],
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${restaurant.name} | NaijaDine`,
+      title: `${restaurant.name} | DineRoot`,
       description,
       images: restaurant.cover_photo_url ? [restaurant.cover_photo_url] : [],
     },
@@ -89,10 +94,21 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
     .select('*')
     .eq('slug', slug)
     .in('status', ['active', 'approved'])
+    .eq('product_type', 'marketplace')
     .is('deleted_at', null)
     .single();
 
   if (!restaurant) notFound();
+
+  // Check if restaurant is claimed (has approved claim or owner is not the seed admin)
+  const { data: approvedClaim } = await supabase
+    .from('restaurant_claims')
+    .select('id')
+    .eq('restaurant_id', restaurant.id)
+    .eq('status', 'approved')
+    .limit(1);
+
+  const isUnclaimed = !(approvedClaim && approvedClaim.length > 0);
 
   // Fetch photos
   const { data: photos } = await supabase
@@ -111,6 +127,14 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
     .eq('moderation_status', 'approved')
     .order('created_at', { ascending: false })
     .limit(10);
+
+  // Fetch menu
+  const { data: menuCategories } = await supabase
+    .from('menu_categories')
+    .select('id, name, description, menu_items(id, name, description, price, is_available)')
+    .eq('restaurant_id', restaurant.id)
+    .eq('is_active', true)
+    .order('sort_order');
 
   // Fetch active deals
   const { data: deals } = await supabase
@@ -156,7 +180,7 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
     servesCuisine: cuisines.map((c: string) => c.replace(/_/g, ' ')),
     priceRange: restaurant.pricing_tier === 'fine_dining' ? '$$$$' : restaurant.pricing_tier === 'upscale' ? '$$$' : '$$',
     image: restaurant.cover_photo_url || undefined,
-    url: `https://naijadine.com/restaurants/${restaurant.slug}`,
+    url: `https://dineroot.com/restaurants/${restaurant.slug}`,
     aggregateRating: restaurant.avg_rating > 0 ? {
       '@type': 'AggregateRating',
       ratingValue: restaurant.avg_rating,
@@ -192,6 +216,22 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
           <FavoriteButton restaurantId={restaurant.id} />
         </div>
       </div>
+
+      {/* Claim banner for unclaimed restaurants */}
+      {isUnclaimed && (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <div>
+            <p className="font-semibold text-amber-900">Is this your restaurant?</p>
+            <p className="text-sm text-amber-700">Claim ownership to manage bookings, update your menu, and receive deposits.</p>
+          </div>
+          <Link
+            href={`https://dashboard.dineroot.com/claim?restaurant=${restaurant.slug}`}
+            className="flex-shrink-0 rounded-lg bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-700"
+          >
+            Claim Restaurant
+          </Link>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-8 lg:grid-cols-3">
         {/* Main content */}
@@ -231,50 +271,48 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
           {photos && photos.length > 0 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Photos</h2>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {photos.slice(0, 6).map((photo) => (
-                  <img
-                    key={photo.id}
-                    src={photo.url}
-                    alt={photo.caption || restaurant.name}
-                    className="aspect-square rounded-lg object-cover"
-                    loading="lazy"
-                  />
-                ))}
+              <div className="mt-3">
+                <PhotoGallery photos={photos} />
               </div>
             </div>
           )}
 
           {/* Menu */}
-          {restaurant.menu_url && (
+          {menuCategories && menuCategories.length > 0 && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Menu</h2>
-              <div className="mt-3">
-                {/\.(jpg|jpeg|png|webp)(\?|$)/i.test(restaurant.menu_url) ? (
-                  <a href={restaurant.menu_url} target="_blank" rel="noopener noreferrer">
-                    <img
-                      src={restaurant.menu_url}
-                      alt={`${restaurant.name} menu`}
-                      className="w-full rounded-lg border border-gray-100 object-contain"
-                      loading="lazy"
-                    />
-                  </a>
-                ) : (
-                  <iframe
-                    src={restaurant.menu_url}
-                    title={`${restaurant.name} menu`}
-                    className="h-[600px] w-full rounded-lg border border-gray-200"
-                  />
-                )}
-                <a
-                  href={restaurant.menu_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block text-sm font-medium text-brand hover:underline"
-                >
-                  View Full Menu
-                </a>
+              <div className="mt-3 space-y-6">
+                {menuCategories.map((cat) => {
+                  const items = (cat.menu_items || []) as { id: string; name: string; description: string | null; price: number; is_available: boolean }[];
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={cat.id}>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">{cat.name}</h3>
+                      <div className="mt-2 divide-y divide-gray-50">
+                        {items.filter(i => i.is_available).map((item) => (
+                          <div key={item.id} className="flex items-start justify-between py-3">
+                            <div>
+                              <p className="font-medium text-gray-900">{item.name}</p>
+                              {item.description && <p className="mt-0.5 text-sm text-gray-500">{item.description}</p>}
+                            </div>
+                            <span className="ml-4 flex-shrink-0 font-semibold text-gray-900">{formatNaira(item.price)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+          )}
+          {/* Menu PDF fallback */}
+          {(!menuCategories || menuCategories.length === 0) && restaurant.menu_url && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Menu</h2>
+              <a href={restaurant.menu_url} target="_blank" rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                📄 View Menu PDF
+              </a>
             </div>
           )}
 
@@ -362,12 +400,44 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
                 Deposit: {formatNaira(restaurant.deposit_per_guest)} / guest
               </p>
             )}
-            <Link
-              href={`/booking/${restaurant.slug}`}
-              className="mt-4 block w-full rounded-lg bg-brand py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-500"
-            >
-              Book Now
-            </Link>
+
+            {/* Quick book form */}
+            <form action={`/booking/${restaurant.slug}`} method="GET" className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">Date</label>
+                <input
+                  type="date"
+                  name="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-brand"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Time</label>
+                  <select name="time" className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-brand">
+                    {['12:00','12:30','13:00','13:30','14:00','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00'].map((t) => (
+                      <option key={t} value={t}>{t.split(':')[0]}:{t.split(':')[1]} {Number(t.split(':')[0]) >= 12 ? 'PM' : 'AM'}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Guests</label>
+                  <select name="party_size" className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-brand">
+                    {[1,2,3,4,5,6,7,8,10,12].map((n) => (
+                      <option key={n} value={n}>{n} {n === 1 ? 'guest' : 'guests'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-600"
+              >
+                Find a Table
+              </button>
+            </form>
 
             {/* Info */}
             <div className="mt-6 space-y-3 border-t border-gray-100 pt-4 text-sm text-gray-600">
@@ -396,6 +466,58 @@ export default async function RestaurantDetailPage({ params }: PageProps) {
                 </div>
               )}
             </div>
+
+            {/* Share */}
+            <div className="mt-4 flex gap-2 border-t border-gray-100 pt-4">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Check out ${restaurant.name} on DineRoot! https://dineroot.com/restaurants/${restaurant.slug}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <svg className="h-4 w-4 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                Share
+              </a>
+              <a
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Dining at ${restaurant.name} — book on DineRoot!`)}&url=${encodeURIComponent(`https://dineroot.com/restaurants/${restaurant.slug}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                🐦 Tweet
+              </a>
+            </div>
+
+            {/* Map */}
+            {restaurant.latitude && restaurant.longitude && (
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <span className="text-sm font-medium text-gray-900">Location</span>
+                <div className="mt-2 h-48 overflow-hidden rounded-lg">
+                  <MapView
+                    restaurants={[{
+                      id: restaurant.id,
+                      name: restaurant.name,
+                      slug: restaurant.slug,
+                      latitude: restaurant.latitude,
+                      longitude: restaurant.longitude,
+                      city: restaurant.city,
+                      neighborhood: restaurant.neighborhood,
+                      rating_avg: restaurant.rating_avg || 0,
+                      cover_photo_url: restaurant.cover_photo_url,
+                    }]}
+                    zoom={15}
+                  />
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${restaurant.latitude},${restaurant.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block text-xs font-medium text-brand hover:underline"
+                >
+                  Open in Google Maps →
+                </a>
+              </div>
+            )}
 
             {/* Operating Hours */}
             {operatingHours && Object.keys(operatingHours).length > 0 && (

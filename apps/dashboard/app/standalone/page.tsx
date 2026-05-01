@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant, useDashboard } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { PRICING, formatNaira, formatTime } from '@naijadine/shared';
+import { PRICING, formatNaira, formatTime } from '@dineroot/shared';
 
 interface Stats {
   todayBookings: number;

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../config/supabase.service';
-import { PRICING } from '@naijadine/shared';
+import { PRICING } from '@dineroot/shared';
 
 export interface TierCheckResult {
   allowed: boolean;

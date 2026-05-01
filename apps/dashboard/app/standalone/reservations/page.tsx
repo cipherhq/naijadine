@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant, useDashboard } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { formatTime } from '@naijadine/shared';
+import { formatTime } from '@dineroot/shared';
 
 interface Reservation {
   id: string;

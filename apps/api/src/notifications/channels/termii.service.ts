@@ -33,7 +33,7 @@ export class TermiiSmsService {
         body: JSON.stringify({
           api_key: this.apiKey,
           to: message.to.replace('+', ''),
-          from: 'NaijaDine',
+          from: 'DineRoot',
           sms: message.text,
           type: 'plain',
           channel: 'dnd', // DND bypass for Nigerian numbers

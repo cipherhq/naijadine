@@ -81,6 +81,11 @@ const navItems = [
     label: 'Integrations',
     icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />,
   },
+  {
+    href: '/admin/pages',
+    label: 'Pages',
+    icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />,
+  },
 ];
 
 export function AdminSidebar() {
@@ -105,7 +110,7 @@ export function AdminSidebar() {
           A
         </div>
         <div>
-          <span className="text-lg font-bold text-gray-900">NaijaDine</span>
+          <span className="text-lg font-bold text-gray-900">DineRoot</span>
           <span className="ml-1.5 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">ADMIN</span>
         </div>
       </div>

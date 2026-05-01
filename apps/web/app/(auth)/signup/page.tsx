@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { createClient } from '@/lib/supabase/client';
-import { CITIES } from '@naijadine/shared';
+import { CITIES } from '@dineroot/shared';
 
 type Step = 'phone' | 'otp' | 'profile';
 type AuthMode = 'phone' | 'email';

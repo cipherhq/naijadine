@@ -6,7 +6,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">NaijaDine</h3>
+            <h3 className="text-sm font-semibold text-gray-900">DineRoot</h3>
             <p className="mt-2 text-sm text-gray-500">
               Discover. Reserve. Dine.
             </p>
@@ -73,7 +73,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-8 border-t border-gray-100 pt-8 text-center text-sm text-gray-400">
-          &copy; {new Date().getFullYear()} NaijaDine. All rights reserved.
+          &copy; {new Date().getFullYear()} DineRoot. All rights reserved.
         </div>
       </div>
     </footer>

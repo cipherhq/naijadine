@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHmac, randomUUID } from 'crypto';
 import { SupabaseService } from '../config/supabase.service';
+import { PlatformConfigService } from '../common/services/platform-config.service';
 import { InitializePaymentDto } from './dto/initialize-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { VerifyBankDto } from './dto/verify-bank.dto';
@@ -21,6 +22,7 @@ export class PaymentsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly platformConfig: PlatformConfigService,
   ) {
     this.paystackSecretKey =
       this.configService.get<string>('PAYSTACK_SECRET_KEY') || '';
@@ -30,10 +32,10 @@ export class PaymentsService {
   async initialize(dto: InitializePaymentDto, userId: string) {
     const supabase = this.supabaseService.getClient();
 
-    // Get reservation
+    // Get reservation with restaurant payment details
     const { data: reservation } = await supabase
       .from('reservations')
-      .select('*, restaurants (name)')
+      .select('*, restaurants (name, payment_gateway, gateway_subaccount_code)')
       .eq('id', dto.reservation_id)
       .eq('user_id', userId)
       .single();
@@ -58,7 +60,7 @@ export class PaymentsService {
         .select('email, phone')
         .eq('id', userId)
         .single();
-      email = profile?.email || `${profile?.phone?.replace('+', '')}@naijadine.com`;
+      email = profile?.email || `${profile?.phone?.replace('+', '')}@dineroot.com`;
     }
 
     // Generate idempotency key
@@ -97,6 +99,43 @@ export class PaymentsService {
       };
     }
 
+    // Build Paystack payload with split payment if restaurant has subaccount
+    const restaurant = reservation.restaurants as {
+      name: string;
+      payment_gateway: string | null;
+      gateway_subaccount_code: string | null;
+    } | null;
+
+    const paystackPayload: Record<string, unknown> = {
+      email,
+      amount: amountInKobo,
+      callback_url: dto.callback_url,
+      metadata: {
+        reservation_id: dto.reservation_id,
+        user_id: userId,
+        reservation_ref: reservation.reference_code,
+        custom_fields: [
+          {
+            display_name: 'Restaurant',
+            variable_name: 'restaurant',
+            value: restaurantName,
+          },
+        ],
+      },
+    };
+
+    // Split payment: restaurant gets 90%, DineRoot keeps 10% commission
+    if (restaurant?.gateway_subaccount_code && restaurant.payment_gateway === 'paystack') {
+      paystackPayload.subaccount = restaurant.gateway_subaccount_code;
+      paystackPayload.bearer = 'account'; // DineRoot bears Paystack fees
+      // Paystack splits: subaccount gets (amount - transaction_charge)
+      // We set transaction_charge = our 10% commission
+      paystackPayload.transaction_charge = Math.round(amountInKobo * this.platformConfig.commissionRate);
+      this.logger.log(
+        `Split payment: ${restaurant.gateway_subaccount_code} gets 90%, DineRoot gets 10% (${paystackPayload.transaction_charge} kobo)`,
+      );
+    }
+
     // Initialize Paystack transaction
     const response = await fetch(`${this.paystackBaseUrl}/transaction/initialize`, {
       method: 'POST',
@@ -104,23 +143,7 @@ export class PaymentsService {
         Authorization: `Bearer ${this.paystackSecretKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        email,
-        amount: amountInKobo,
-        callback_url: dto.callback_url,
-        metadata: {
-          reservation_id: dto.reservation_id,
-          user_id: userId,
-          reservation_ref: reservation.reference_code,
-          custom_fields: [
-            {
-              display_name: 'Restaurant',
-              variable_name: 'restaurant',
-              value: restaurantName,
-            },
-          ],
-        },
-      }),
+      body: JSON.stringify(paystackPayload),
     });
 
     const data = await response.json();
@@ -266,8 +289,21 @@ export class PaymentsService {
   }
 
   // ── Verify payment status via API ──────────────────────────
-  async verifyPayment(reference: string) {
+  async verifyPayment(reference: string, userId?: string) {
     const supabase = this.supabaseService.getClient();
+
+    // Ownership check — prevent IDOR
+    if (userId) {
+      const { data: ownerCheck } = await supabase
+        .from('payments')
+        .select('user_id')
+        .eq('gateway_reference', reference)
+        .single();
+
+      if (ownerCheck && ownerCheck.user_id !== userId) {
+        throw new ForbiddenException('Access denied');
+      }
+    }
 
     if (!this.paystackSecretKey || reference.startsWith('mock_')) {
       // Dev mode — auto-succeed
@@ -543,6 +579,167 @@ export class PaymentsService {
       .eq('id', bankAccountId);
 
     return { recipient_code: recipientCode };
+  }
+
+  // ── Payout Execution ───────────────────────────────────────
+
+  async calculatePayout(
+    restaurantId: string,
+    periodStart: string,
+    periodEnd: string,
+  ) {
+    const supabase = this.supabaseService.getClient();
+
+    // Sum successful payments for the period
+    const { data: payments } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'success')
+      .gte('created_at', periodStart)
+      .lte('created_at', periodEnd)
+      .in(
+        'reservation_id',
+        (
+          await supabase
+            .from('reservations')
+            .select('id')
+            .eq('restaurant_id', restaurantId)
+        ).data?.map((r) => r.id) || [],
+      );
+
+    // Sum refunds for the period
+    const { data: refunds } = await supabase
+      .from('refunds')
+      .select('amount')
+      .eq('status', 'completed')
+      .gte('created_at', periodStart)
+      .lte('created_at', periodEnd);
+
+    const grossAmount = (payments || []).reduce(
+      (sum, p) => sum + (p.amount || 0),
+      0,
+    );
+    const refundAmount = (refunds || []).reduce(
+      (sum, r) => sum + (r.amount || 0),
+      0,
+    );
+    const commissionRate = this.platformConfig.commissionRate;
+    const commissionAmount = Math.round(
+      (grossAmount - refundAmount) * commissionRate,
+    );
+    const netAmount = grossAmount - refundAmount - commissionAmount;
+
+    return {
+      gross_amount: grossAmount,
+      refund_amount: refundAmount,
+      commission_amount: commissionAmount,
+      net_amount: netAmount,
+    };
+  }
+
+  async executePayout(payoutId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: payout } = await supabase
+      .from('payouts')
+      .select('*, bank_accounts(paystack_recipient_code)')
+      .eq('id', payoutId)
+      .eq('status', 'pending')
+      .single();
+
+    if (!payout) {
+      throw new NotFoundException('Payout not found or not pending');
+    }
+
+    const recipientCode =
+      payout.bank_accounts?.paystack_recipient_code;
+    if (!recipientCode) {
+      throw new BadRequestException(
+        'Restaurant has no verified bank account',
+      );
+    }
+
+    // Dev mode
+    if (!this.paystackSecretKey) {
+      this.logger.warn('Dev mode: Mocking payout execution');
+      await supabase
+        .from('payouts')
+        .update({
+          status: 'completed',
+          gateway_reference: `mock_transfer_${Date.now()}`,
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', payoutId);
+
+      return { success: true, reference: `mock_transfer_${Date.now()}` };
+    }
+
+    // Paystack Transfer API
+    const response = await fetch(`${this.paystackBaseUrl}/transfer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.paystackSecretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source: 'balance',
+        amount: payout.net_amount * 100, // kobo
+        recipient: recipientCode,
+        reason: `DineRoot payout ${payout.period_start} to ${payout.period_end}`,
+        reference: `payout_${payoutId}_${Date.now()}`,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!result.status) {
+      this.logger.error(`Payout failed: ${JSON.stringify(result)}`);
+      await supabase
+        .from('payouts')
+        .update({ status: 'failed' })
+        .eq('id', payoutId);
+
+      throw new BadRequestException(
+        result.message || 'Payout transfer failed',
+      );
+    }
+
+    await supabase
+      .from('payouts')
+      .update({
+        status: 'processing',
+        gateway_reference: result.data.transfer_code,
+      })
+      .eq('id', payoutId);
+
+    return {
+      success: true,
+      reference: result.data.transfer_code,
+    };
+  }
+
+  async processTransferWebhook(event: string, data: Record<string, unknown>) {
+    const supabase = this.supabaseService.getClient();
+    const transferCode = data.transfer_code as string;
+
+    if (!transferCode) return;
+
+    const statusMap: Record<string, string> = {
+      'transfer.success': 'completed',
+      'transfer.failed': 'failed',
+      'transfer.reversed': 'failed',
+    };
+
+    const newStatus = statusMap[event];
+    if (!newStatus) return;
+
+    await supabase
+      .from('payouts')
+      .update({
+        status: newStatus,
+        processed_at: new Date().toISOString(),
+      })
+      .eq('gateway_reference', transferCode);
   }
 
   // ── List banks ─────────────────────────────────────────────

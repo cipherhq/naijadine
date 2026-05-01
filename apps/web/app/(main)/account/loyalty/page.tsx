@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { LOYALTY_TIERS } from '@naijadine/shared';
+import { LOYALTY_TIERS } from '@dineroot/shared';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Loyalty & Rewards — NaijaDine' };
+export const metadata: Metadata = { title: 'Loyalty & Rewards — DineRoot' };
 
 export default async function LoyaltyPage() {
   const supabase = await createClient();
@@ -110,7 +110,7 @@ export default async function LoyaltyPage() {
       <div className="mt-6 rounded-xl border border-gray-100 bg-white p-6">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">How It Works</h2>
         <div className="space-y-2 text-sm text-gray-600">
-          <p>1. Book and dine at any restaurant on NaijaDine</p>
+          <p>1. Book and dine at any restaurant on DineRoot</p>
           <p>2. Earn points with every completed reservation</p>
           <p>3. Move up tiers to unlock bigger discounts</p>
           <p>4. Your tier resets annually — keep dining to maintain your level!</p>

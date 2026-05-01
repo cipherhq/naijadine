@@ -1,11 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { NotificationBell } from './NotificationBell';
+import { LanguageSelector } from './LanguageSelector';
 
 export function Navbar() {
   const pathname = usePathname();
@@ -34,8 +36,8 @@ export function Navbar() {
   return (
     <nav className="sticky top-0 z-50 border-b border-gray-100 bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        <Link href="/" className="text-xl font-bold text-brand">
-          NaijaDine
+        <Link href="/" className="flex items-center">
+          <Image src="/logo.png" alt="DineRoot" width={140} height={36} priority />
         </Link>
 
         {/* Desktop nav */}
@@ -60,6 +62,8 @@ export function Navbar() {
           >
             For Business
           </Link>
+
+          <LanguageSelector />
 
           {user ? (
             <div className="flex items-center gap-4">
@@ -92,6 +96,7 @@ export function Navbar() {
           onClick={() => setMenuOpen(!menuOpen)}
           className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 md:hidden"
           aria-label="Toggle menu"
+          aria-expanded={menuOpen}
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             {menuOpen ? (

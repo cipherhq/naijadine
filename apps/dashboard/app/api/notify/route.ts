@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const FROM_EMAIL = 'NaijaDine <hello@naijadine.com>';
+const FROM_EMAIL = 'DineRoot <hello@dineroot.com>';
 
 // ─── Email templates ────────────────────────────────────────────
 
@@ -17,9 +17,9 @@ function baseLayout(content: string): string {
     .container { max-width: 560px; margin: 0 auto; padding: 24px; }
     .card { background: #fff; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb; }
     .header { text-align: center; margin-bottom: 24px; }
-    .logo { font-size: 24px; font-weight: 700; color: #1B4332; }
+    .logo { font-size: 24px; font-weight: 700; color: #F04E37; }
     .logo span { color: #E8A817; }
-    .btn { display: inline-block; padding: 12px 32px; background: #1B4332; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; }
+    .btn { display: inline-block; padding: 12px 32px; background: #F04E37; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; }
     .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #9ca3af; }
   </style>
 </head>
@@ -27,12 +27,12 @@ function baseLayout(content: string): string {
   <div class="container">
     <div class="card">
       <div class="header">
-        <div class="logo">Naija<span>Dine</span></div>
+        <div class="logo">Dine<span>Root</span></div>
       </div>
       ${content}
     </div>
     <div class="footer">
-      <p>&copy; ${new Date().getFullYear()} NaijaDine. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} DineRoot. All rights reserved.</p>
     </div>
   </div>
 </body>
@@ -50,7 +50,7 @@ function setupPendingEmail(businessName: string, ownerName: string) {
       </div>
       <h2 style="text-align:center;color:#111827;margin:0 0 8px;">Application Received!</h2>
       <p style="text-align:center;color:#6b7280;margin:0 0 24px;">
-        Hi ${ownerName}, thanks for signing up <strong>${businessName}</strong> on NaijaDine.
+        Hi ${ownerName}, thanks for signing up <strong>${businessName}</strong> on DineRoot.
       </p>
       <div style="background:#f0f9ff;border-radius:8px;padding:16px;margin-bottom:20px;">
         <p style="font-size:14px;color:#1e40af;margin:0 0 8px;font-weight:600;">What happens next?</p>
@@ -72,7 +72,7 @@ function setupCompleteEmail(businessName: string, ownerName: string, phoneNumber
     : '';
 
   return {
-    subject: `${businessName} is live on NaijaDine!`,
+    subject: `${businessName} is live on DineRoot!`,
     html: baseLayout(`
       <div style="text-align:center; margin-bottom:20px;">
         <div style="width:48px;height:48px;border-radius:50%;background:#d1fae5;display:inline-flex;align-items:center;justify-content:center;">
@@ -94,7 +94,7 @@ function setupCompleteEmail(businessName: string, ownerName: string, phoneNumber
         <p style="font-size:13px;color:#374151;margin:4px 0;">3. Manage bookings from your dashboard</p>
       </div>
       <div style="text-align:center;margin:20px 0;">
-        <a href="https://dashboard.naijadine.com" class="btn">Go to Dashboard</a>
+        <a href="https://dashboard.dineroot.com" class="btn">Go to Dashboard</a>
       </div>
     `),
   };

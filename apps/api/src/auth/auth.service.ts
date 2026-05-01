@@ -50,7 +50,7 @@ export class AuthService {
       const { data: signInData, error: signInError } =
         await supabase.auth.admin.generateLink({
           type: 'magiclink',
-          email: `${phone.replace('+', '')}@phone.naijadine.com`,
+          email: `${phone.replace('+', '')}@phone.dineroot.com`,
         });
 
       if (signInError) {
@@ -59,7 +59,7 @@ export class AuthService {
       }
     } else {
       // Create new user
-      const placeholderEmail = `${phone.replace('+', '')}@phone.naijadine.com`;
+      const placeholderEmail = `${phone.replace('+', '')}@phone.dineroot.com`;
 
       const { data: newUser, error: createError } =
         await supabase.auth.admin.createUser({

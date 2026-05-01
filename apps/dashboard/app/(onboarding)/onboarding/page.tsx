@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { CITIES, CUISINE_TYPES } from '@naijadine/shared';
+import { CITIES, CUISINE_TYPES } from '@dineroot/shared';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -219,7 +219,7 @@ export default function OnboardingPage() {
           <div>
             <h2 className="text-xl font-semibold">Choose Your Product</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Select how you want to use NaijaDine
+              Select how you want to use DineRoot
             </p>
             <div className="mt-6 space-y-3">
               <button
@@ -231,9 +231,9 @@ export default function OnboardingPage() {
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <span className="font-semibold">NaijaDine Marketplace</span>
+                <span className="font-semibold">DineRoot Marketplace</span>
                 <p className="mt-1 text-sm text-gray-500">
-                  Get listed on NaijaDine. Diners discover and book your restaurant via app, web, and WhatsApp.
+                  Get listed on DineRoot. Diners discover and book your restaurant via app, web, and WhatsApp.
                 </p>
               </button>
               <button
@@ -247,7 +247,7 @@ export default function OnboardingPage() {
               >
                 <span className="font-semibold">WhatsApp Standalone</span>
                 <p className="mt-1 text-sm text-gray-500">
-                  Your own WhatsApp booking bot + dashboard. Not listed on NaijaDine marketplace.
+                  Your own WhatsApp booking bot + dashboard. Not listed on DineRoot marketplace.
                 </p>
               </button>
             </div>

@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { PRICING, FEES } from '@naijadine/shared';
+import { PRICING, FEES } from '@dineroot/shared';
 
 export const metadata: Metadata = {
-  title: 'Pricing — NaijaDine',
-  description: 'NaijaDine pricing plans for restaurants. List your restaurant and start accepting reservations.',
+  title: 'Pricing — DineRoot',
+  description: 'DineRoot pricing plans for restaurants. List your restaurant and start accepting reservations.',
 };
 
 function formatPrice(price: number | null) {
@@ -30,7 +30,7 @@ export default function PricingPage() {
       <div className="mt-14">
         <h2 className="text-center text-xl font-semibold text-gray-900">Marketplace</h2>
         <p className="mt-1 text-center text-sm text-gray-500">
-          Get discovered by diners on naijadine.com
+          Get discovered by diners on dineroot.com
         </p>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
@@ -41,7 +41,7 @@ export default function PricingPage() {
             period="/month"
             features={[
               'Up to 50 bookings/month',
-              'Listed on NaijaDine',
+              'Listed on DineRoot',
               'Reservation dashboard',
               'Email confirmations',
               `${FEES.commissionRate}% commission on deposits`,
@@ -99,7 +99,7 @@ export default function PricingPage() {
               'WhatsApp booking bot',
               'Reservation dashboard',
               'SMS & email notifications',
-              'NaijaDine branding',
+              'DineRoot branding',
             ]}
           />
 
@@ -163,7 +163,7 @@ export default function PricingPage() {
       <div className="mt-20 rounded-2xl bg-brand p-10 text-center">
         <h2 className="text-2xl font-bold text-white">Ready to grow your restaurant?</h2>
         <p className="mt-2 text-brand-200">
-          Join hundreds of restaurants already using NaijaDine.
+          Join hundreds of restaurants already using DineRoot.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Link

@@ -14,12 +14,16 @@ import 'screens/booking_flow_screen.dart';
 import 'screens/booking_detail_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/deals_screen.dart';
+import 'screens/favorites_screen.dart';
+import 'screens/loyalty_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/review_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
-class NaijaDineApp extends StatelessWidget {
-  const NaijaDineApp({super.key});
+class DineRootApp extends StatelessWidget {
+  const DineRootApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -93,11 +97,30 @@ class NaijaDineApp extends StatelessWidget {
           path: '/deals',
           builder: (context, state) => const DealsScreen(),
         ),
+        GoRoute(
+          path: '/favorites',
+          builder: (context, state) => const FavoritesScreen(),
+        ),
+        GoRoute(
+          path: '/loyalty',
+          builder: (context, state) => const LoyaltyScreen(),
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: '/review/:reservationId',
+          builder: (context, state) => ReviewScreen(
+            reservationId: state.pathParameters['reservationId']!,
+            restaurantName: state.uri.queryParameters['name'] ?? '',
+          ),
+        ),
       ],
     );
 
     return MaterialApp.router(
-      title: 'NaijaDine',
+      title: 'DineRoot',
       theme: AppTheme.lightTheme,
       routerConfig: router,
       debugShowCheckedModeBanner: false,

@@ -6,16 +6,16 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title: {
-    default: 'NaijaDine Dashboard',
-    template: '%s | NaijaDine Dashboard',
+    default: 'DineRoot Dashboard',
+    template: '%s | DineRoot Dashboard',
   },
-  description: 'Restaurant management dashboard for NaijaDine partners.',
+  description: 'Restaurant management dashboard for DineRoot partners.',
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#1B4332',
+  themeColor: '#F04E37',
 };
 
 export default function RootLayout({

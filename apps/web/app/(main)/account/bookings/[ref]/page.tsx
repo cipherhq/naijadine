@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira, formatTime, BOOKING_DEFAULTS } from '@naijadine/shared';
+import { formatNaira, formatTime, BOOKING_DEFAULTS } from '@dineroot/shared';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface Reservation {
   id: string;

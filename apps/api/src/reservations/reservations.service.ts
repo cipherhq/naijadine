@@ -10,6 +10,9 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../config/supabase.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+import { PlatformConfigService } from '../common/services/platform-config.service';
 
 @Injectable()
 export class ReservationsService {
@@ -20,6 +23,9 @@ export class ReservationsService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    private readonly notificationsService: NotificationsService,
+    private readonly loyaltyService: LoyaltyService,
+    private readonly platformConfig: PlatformConfigService,
   ) {
     this.redisUrl = this.configService.get<string>('UPSTASH_REDIS_REST_URL') || '';
     this.redisToken = this.configService.get<string>('UPSTASH_REDIS_REST_TOKEN') || '';
@@ -79,6 +85,33 @@ export class ReservationsService {
 
     if (restaurant.status !== 'active') {
       throw new BadRequestException('Restaurant is not accepting bookings');
+    }
+
+    // Check booking tier limits (paywall)
+    const { count: monthlyBookings } = await supabase
+      .from('reservations')
+      .select('*', { count: 'exact', head: true })
+      .eq('restaurant_id', dto.restaurant_id)
+      .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
+
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('plan, status')
+      .eq('restaurant_id', dto.restaurant_id)
+      .eq('status', 'active')
+      .single();
+
+    const plan = subscription?.plan || 'free';
+    const limits: Record<string, number> = {
+      free: this.platformConfig.freeBookingLimit,
+      starter: this.platformConfig.starterBookingLimit,
+    };
+    const limit = limits[plan];
+
+    if (limit && (monthlyBookings || 0) >= limit) {
+      throw new BadRequestException(
+        `This restaurant has reached its monthly booking limit (${limit}). Please ask them to upgrade their DineRoot plan.`,
+      );
     }
 
     // Check advance booking limit
@@ -431,7 +464,79 @@ export class ReservationsService {
 
     if (error) throw new BadRequestException('Failed to cancel reservation');
 
+    // Notify the diner about cancellation
+    try {
+      await this.notificationsService.dispatch({
+        userId: reservation.user_id,
+        type: 'system',
+        channels: ['email', 'sms', 'in_app'],
+        title: 'Reservation Cancelled',
+        body: `Your reservation (${reservation.reference_code}) has been cancelled.${reason ? ` Reason: ${reason}` : ''}`,
+        emailSubject: 'Reservation Cancelled — DineRoot',
+        emailHtml: `<p>Your reservation <strong>${reservation.reference_code}</strong> has been cancelled.</p>${reason ? `<p>Reason: ${reason}</p>` : ''}`,
+      });
+    } catch (err) {
+      this.logger.error(`Failed to send cancellation notification: ${err}`);
+    }
+
     return { ...data, refund_eligible: withinWindow || cancelledBy !== 'diner' };
+  }
+
+  // ── Booking modification ────────────────────────────────────
+  async modify(
+    id: string,
+    userId: string,
+    changes: { date?: string; time?: string; party_size?: number },
+  ) {
+    const supabase = this.supabaseService.getClient();
+
+    const { data: reservation } = await supabase
+      .from('reservations')
+      .select('*, restaurants(cancellation_window_hours, deposit_per_guest)')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!reservation) throw new NotFoundException('Reservation not found');
+
+    if (['cancelled', 'completed', 'no_show', 'seated'].includes(reservation.status)) {
+      throw new BadRequestException('Cannot modify a finalized reservation');
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (changes.date) updateData.date = changes.date;
+    if (changes.time) updateData.time = changes.time;
+    if (changes.party_size) {
+      updateData.party_size = changes.party_size;
+      const restaurant = reservation.restaurants as { deposit_per_guest: number } | null;
+      if (restaurant?.deposit_per_guest && reservation.deposit_status === 'none') {
+        updateData.deposit_amount = restaurant.deposit_per_guest * changes.party_size;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException('Failed to modify reservation');
+
+    // Notify about modification
+    try {
+      await this.notificationsService.dispatch({
+        userId: reservation.user_id,
+        type: 'system',
+        channels: ['email', 'in_app'],
+        title: 'Reservation Modified',
+        body: `Your reservation ${reservation.reference_code} has been updated.`,
+      });
+    } catch {
+      // non-critical
+    }
+
+    return data;
   }
 
   // ── Staff actions ──────────────────────────────────────────
@@ -452,9 +557,19 @@ export class ReservationsService {
 
     // Increment restaurant total_bookings
     try {
-      await supabase.rpc('increment_total_bookings' as never, { restaurant_uuid: restaurantId } as never);
-    } catch {
-      // RPC may not exist yet — silently ignore
+      await supabase.rpc('increment_total_bookings', { restaurant_uuid: restaurantId });
+    } catch (err) {
+      this.logger.warn(`Failed to increment total_bookings: ${err}`);
+    }
+
+    // Check loyalty tier progression
+    try {
+      const userId = result.user_id;
+      if (userId) {
+        await this.loyaltyService.checkTierProgression(userId);
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to check loyalty tier: ${err}`);
     }
 
     return result;
@@ -507,6 +622,27 @@ export class ReservationsService {
     }
 
     await supabase.from('profiles').update(updateData).eq('id', reservation.user_id);
+
+    // Notify user about no-show
+    try {
+      const warningBody = newCount >= strikeLimit
+        ? `Your account has been suspended after ${newCount} no-shows. Contact support@dineroot.com for assistance.`
+        : `You have been marked as a no-show. This is strike ${newCount} of ${strikeLimit}. Please honour your reservations or cancel in advance.`;
+
+      await this.notificationsService.dispatch({
+        userId: reservation.user_id,
+        type: newCount >= strikeLimit ? 'account_suspended' : 'no_show_warning',
+        channels: ['email', 'sms', 'in_app'],
+        title: newCount >= strikeLimit ? 'Account Suspended' : 'No-Show Warning',
+        body: warningBody,
+        emailSubject: newCount >= strikeLimit
+          ? 'Account Suspended — DineRoot'
+          : 'No-Show Warning — DineRoot',
+        emailHtml: `<p>${warningBody}</p>`,
+      });
+    } catch (err) {
+      this.logger.error(`Failed to send no-show notification: ${err}`);
+    }
 
     return {
       message: 'No-show recorded',

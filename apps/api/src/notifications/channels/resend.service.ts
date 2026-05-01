@@ -12,7 +12,7 @@ export interface EmailMessage {
 export class ResendEmailService {
   private readonly logger = new Logger(ResendEmailService.name);
   private readonly apiKey: string;
-  private readonly defaultFrom = 'NaijaDine <hello@naijadine.com>';
+  private readonly defaultFrom = 'DineRoot <hello@dineroot.com>';
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('RESEND_API_KEY') || '';

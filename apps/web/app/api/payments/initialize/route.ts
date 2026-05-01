@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     const email =
-      profile?.email || `${(profile?.phone as string)?.replace('+', '')}@naijadine.com`;
+      profile?.email || `${(profile?.phone as string)?.replace('+', '')}@dineroot.com`;
 
     const idempotencyKey = randomUUID();
     const amountInKobo = reservation.deposit_amount * 100;

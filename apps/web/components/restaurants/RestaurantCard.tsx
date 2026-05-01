@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatNaira } from '@naijadine/shared';
+import { formatNaira } from '@dineroot/shared';
 
 interface RestaurantCardProps {
   restaurant: {

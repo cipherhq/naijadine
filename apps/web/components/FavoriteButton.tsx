@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 
 function getFavoriteIds(): string[] {
   try {
-    return JSON.parse(localStorage.getItem('naijadine_favorites') || '[]');
+    return JSON.parse(localStorage.getItem('dineroot_favorites') || '[]');
   } catch {
     return [];
   }
@@ -25,7 +25,7 @@ export function FavoriteButton({ restaurantId }: { restaurantId: string }) {
     } else {
       updated = [...ids, restaurantId];
     }
-    localStorage.setItem('naijadine_favorites', JSON.stringify(updated));
+    localStorage.setItem('dineroot_favorites', JSON.stringify(updated));
     setIsFav(!isFav);
   }
 

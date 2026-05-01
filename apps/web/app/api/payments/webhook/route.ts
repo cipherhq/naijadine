@@ -8,18 +8,19 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-paystack-signature') || '';
     const paystackKey = process.env.PAYSTACK_SECRET_KEY;
 
-    // Verify signature
-    if (paystackKey) {
-      const hash = createHmac('sha512', paystackKey)
-        .update(rawBody)
-        .digest('hex');
+    // Verify signature — ALWAYS required
+    if (!paystackKey) {
+      console.error('PAYSTACK_SECRET_KEY not set — rejecting webhook');
+      return NextResponse.json({ message: 'Webhook not configured' }, { status: 503 });
+    }
 
-      if (hash !== signature) {
-        return NextResponse.json(
-          { message: 'Invalid signature' },
-          { status: 400 },
-        );
-      }
+    const hash = createHmac('sha512', paystackKey)
+      .update(rawBody)
+      .digest('hex');
+
+    if (hash !== signature) {
+      console.error('Webhook signature mismatch');
+      return NextResponse.json({ message: 'Invalid signature' }, { status: 400 });
     }
 
     const body = JSON.parse(rawBody);

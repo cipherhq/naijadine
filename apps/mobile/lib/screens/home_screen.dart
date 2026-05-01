@@ -65,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'NaijaDine',
+                          'DineRoot',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 24,

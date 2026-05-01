@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRestaurant } from '@/components/DashboardProvider';
 import { createClient } from '@/lib/supabase/client';
-import { CITIES } from '@naijadine/shared';
+import { CITIES } from '@dineroot/shared';
 
 type DayHours = { open: string; close: string };
 

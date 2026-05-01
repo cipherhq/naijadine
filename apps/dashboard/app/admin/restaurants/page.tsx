@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
-import { CITIES, BUSINESS_CATEGORIES as FALLBACK_CATEGORIES } from '@naijadine/shared';
-import type { BusinessCategoryRow } from '@naijadine/shared';
+import { CITIES, BUSINESS_CATEGORIES as FALLBACK_CATEGORIES } from '@dineroot/shared';
+import type { BusinessCategoryRow } from '@dineroot/shared';
 
 const cityKeys = Object.keys(CITIES) as (keyof typeof CITIES)[];
 

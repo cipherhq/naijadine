@@ -12,6 +12,18 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WhatsAppBotModule } from './whatsapp-bot/bot.module';
+import { AdminModule } from './admin/admin.module';
+import { WaitlistModule } from './waitlist/waitlist.module';
+import { OrdersModule } from './orders/orders.module';
+import { GuestsModule } from './guests/guests.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { SearchModule } from './search/search.module';
+import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
+import { SupportModule } from './support/support.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { AutomationsModule } from './automations/automations.module';
 
 @Module({
   imports: [
@@ -44,6 +56,18 @@ import { WhatsAppBotModule } from './whatsapp-bot/bot.module';
     PaymentsModule,
     NotificationsModule,
     WhatsAppBotModule,
+    AdminModule,
+    WaitlistModule,
+    OrdersModule,
+    GuestsModule,
+    ReviewsModule,
+    AnalyticsModule,
+    SearchModule,
+    FeatureFlagsModule,
+    CampaignsModule,
+    SupportModule,
+    SubscriptionsModule,
+    AutomationsModule,
   ],
   controllers: [AppController],
   providers: [

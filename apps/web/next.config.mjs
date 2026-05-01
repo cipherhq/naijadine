@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@naijadine/db', '@naijadine/shared'],
+  transpilePackages: ['@dineroot/db', '@dineroot/shared'],
   images: {
     formats: ['image/webp'],
     remotePatterns: [
@@ -8,6 +8,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'prkghglugnvcwddsfrsm.supabase.co',
         pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
       },
     ],
   },

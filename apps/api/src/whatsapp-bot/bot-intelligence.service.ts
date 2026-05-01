@@ -701,7 +701,7 @@ export class BotIntelligenceService {
   }
 
   getHelpText(isStandalone: boolean, restaurantName?: string, alias?: string, category: BusinessCategory = 'restaurant'): string {
-    const name = alias || 'NaijaDine Bot';
+    const name = alias || 'DineRoot Bot';
     const cat = CATEGORY_LABELS[category] || CATEGORY_LABELS.restaurant;
 
     const lines = [

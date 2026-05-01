@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@naijadine/db', '@naijadine/shared'],
+  transpilePackages: ['@dineroot/db', '@dineroot/shared'],
   images: {
     formats: ['image/webp'],
     remotePatterns: [

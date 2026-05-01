@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { CITIES, FEES } from '@naijadine/shared';
-import type { BusinessCategoryRow } from '@naijadine/shared';
+import { CITIES, FEES } from '@dineroot/shared';
+import type { BusinessCategoryRow } from '@dineroot/shared';
 import { useAdminGuard } from '@/hooks/useAdminGuard';
 
 interface ConfigEntry {
@@ -274,7 +274,7 @@ export default function AdminConfigPage() {
                     <span className="text-sm text-gray-500">%</span>
                   </div>
                   <p className="mt-1 text-xs text-gray-400">
-                    NaijaDine keeps this percentage from each payment. The rest goes to the business.
+                    DineRoot keeps this percentage from each payment. The rest goes to the business.
                   </p>
                 </div>
 
@@ -309,7 +309,7 @@ export default function AdminConfigPage() {
           <div className="rounded-xl border border-gray-100 bg-white p-6">
             <h2 className="font-semibold text-gray-900">Supported Cities</h2>
             <p className="mt-1 text-xs text-gray-400">
-              Cities are configured in the shared package (@naijadine/shared)
+              Cities are configured in the shared package (@dineroot/shared)
             </p>
             <div className="mt-4 space-y-4">
               {Object.entries(CITIES).map(([key, city]) => (
@@ -335,7 +335,7 @@ export default function AdminConfigPage() {
           <div className="rounded-xl border border-gray-100 bg-white p-6">
             <h2 className="font-semibold text-gray-900">Fee Structure</h2>
             <p className="mt-1 text-xs text-gray-400">
-              Fees are configured in the shared package (@naijadine/shared)
+              Fees are configured in the shared package (@dineroot/shared)
             </p>
             <div className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between border-b border-gray-50 pb-2">

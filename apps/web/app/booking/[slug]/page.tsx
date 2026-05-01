@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { formatNaira, formatTime, BOOKING_DEFAULTS } from '@naijadine/shared';
+import { formatNaira, formatTime, BOOKING_DEFAULTS } from '@dineroot/shared';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 type Step = 'details' | 'confirm';
 
@@ -136,6 +137,7 @@ export default function BookingPage() {
 
     setSubmitting(true);
     setError('');
+    const depositTotal = (restaurant.deposit_per_guest || 0) * partySize;
 
     try {
       const supabase = createClient();
@@ -315,15 +317,17 @@ export default function BookingPage() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                  onClick={() => { setPartySize(Math.max(1, partySize - 1)); setTime(''); }}
                   className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-lg hover:bg-gray-50"
+                  aria-label="Decrease guests"
                 >
                   -
                 </button>
                 <span className="w-12 text-center text-lg font-semibold">{partySize}</span>
                 <button
                   type="button"
-                  onClick={() => setPartySize(Math.min(BOOKING_DEFAULTS.maxPartySize, partySize + 1))}
+                  onClick={() => { setPartySize(Math.min(BOOKING_DEFAULTS.maxPartySize, partySize + 1)); setTime(''); }}
+                  aria-label="Increase guests"
                   className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-lg hover:bg-gray-50"
                 >
                   +
@@ -336,25 +340,32 @@ export default function BookingPage() {
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Time</label>
                 {slotsLoading ? (
-                  <div className="py-4 text-center text-sm text-gray-400">Loading times...</div>
+                  <div className="py-8 text-center">
+                    <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                    <p className="mt-2 text-sm text-gray-400">Finding available times...</p>
+                  </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                       {slots.map((slot) => (
                         <button
                           key={slot.time}
                           type="button"
                           disabled={!slot.available}
                           onClick={() => setTime(slot.time)}
-                          className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                          aria-label={`${formatTime(slot.time)}${slot.available ? '' : ' — unavailable'}`}
+                          className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
                             time === slot.time
-                              ? 'border-brand bg-brand text-white'
+                              ? 'border-brand bg-brand text-white shadow-sm'
                               : slot.available
-                              ? 'border-gray-200 text-gray-700 hover:border-brand hover:text-brand'
+                              ? 'border-gray-200 text-gray-700 hover:border-brand hover:text-brand hover:bg-brand-50'
                               : 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed'
                           }`}
                         >
                           {formatTime(slot.time)}
+                          {slot.available && slot.remaining_seats <= 4 && (
+                            <span className="block text-[10px] text-amber-500 font-normal">{slot.remaining_seats} left</span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -502,6 +513,24 @@ export default function BookingPage() {
           </div>
         )}
       </div>
+
+      {/* Sticky mobile CTA */}
+      {step === 'details' && date && time && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] md:hidden">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-sm">
+              <p className="font-semibold text-gray-900">{formatTime(time)} &middot; {partySize} guest{partySize > 1 ? 's' : ''}</p>
+              {depositTotal > 0 && <p className="text-xs text-gray-500">Deposit: {formatNaira(depositTotal)}</p>}
+            </div>
+            <button
+              onClick={() => setStep('confirm')}
+              className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand-600"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

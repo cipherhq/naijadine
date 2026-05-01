@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface Restaurant {
   id: string;
@@ -19,7 +20,7 @@ interface Restaurant {
 function getFavoriteIds(): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    return JSON.parse(localStorage.getItem('naijadine_favorites') || '[]');
+    return JSON.parse(localStorage.getItem('dineroot_favorites') || '[]');
   } catch {
     return [];
   }
@@ -27,7 +28,7 @@ function getFavoriteIds(): string[] {
 
 function removeFavorite(id: string) {
   const ids = getFavoriteIds().filter((fid) => fid !== id);
-  localStorage.setItem('naijadine_favorites', JSON.stringify(ids));
+  localStorage.setItem('dineroot_favorites', JSON.stringify(ids));
   return ids;
 }
 

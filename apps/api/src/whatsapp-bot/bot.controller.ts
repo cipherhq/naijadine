@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { BotService } from './bot.service';
@@ -18,6 +19,7 @@ export class BotController {
 
   @Public()
   @Post()
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async handleWebhook(@Req() req: Request) {
     try {

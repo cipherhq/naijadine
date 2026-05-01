@@ -1,5 +1,5 @@
-const BRAND_COLOR = '#1B4332';
-const ACCENT_COLOR = '#2D6A4F';
+const BRAND_COLOR = '#F04E37';
+const ACCENT_COLOR = '#D93A24';
 const GOLD_COLOR = '#E8A817';
 
 function baseLayout(content: string): string {
@@ -26,12 +26,12 @@ function baseLayout(content: string): string {
   <div class="container">
     <div class="card">
       <div class="header">
-        <div class="logo">Naija<span>Dine</span></div>
+        <div class="logo">Dine<span>Root</span></div>
       </div>
       ${content}
     </div>
     <div class="footer">
-      <p>&copy; ${new Date().getFullYear()} NaijaDine. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} DineRoot. All rights reserved.</p>
       <p>Discover. Reserve. Dine.</p>
     </div>
   </div>
@@ -73,7 +73,7 @@ export function bookingConfirmationEmail(data: BookingEmailData): { subject: str
       </div>
       ${data.depositAmount ? `<p style="font-size:13px;color:${ACCENT_COLOR};text-align:center;">Deposit paid: ₦${data.depositAmount.toLocaleString()}</p>` : ''}
       <div style="text-align:center;margin-top:20px;">
-        <a href="https://naijadine.com/account/bookings" class="btn">View My Bookings</a>
+        <a href="https://dineroot.com/account/bookings" class="btn">View My Bookings</a>
       </div>
     `),
   };
@@ -100,12 +100,12 @@ export function reminder24hEmail(data: BookingEmailData): { subject: string; htm
 
 export function welcomeEmail(name: string): { subject: string; html: string } {
   return {
-    subject: 'Welcome to NaijaDine!',
+    subject: 'Welcome to DineRoot!',
     html: baseLayout(`
       <h2 style="text-align:center;color:#111827;margin:0 0 8px;">Welcome, ${name}!</h2>
       <p style="text-align:center;color:#6b7280;margin:0 0 24px;">We're thrilled to have you. Discover the best dining experiences across Lagos, Abuja, and Port Harcourt.</p>
       <div style="text-align:center;margin:20px 0;">
-        <a href="https://naijadine.com/restaurants" class="btn">Browse Restaurants</a>
+        <a href="https://dineroot.com/restaurants" class="btn">Browse Restaurants</a>
       </div>
       <div style="background:#f9fafb;border-radius:8px;padding:16px;margin-top:24px;">
         <p style="font-size:13px;color:#6b7280;margin:0 0 8px;font-weight:600;">What you can do:</p>
@@ -162,7 +162,7 @@ export function cancellationEmail(data: BookingEmailData & { cancelledBy: string
       </div>
       ${data.depositAmount ? `<p style="font-size:13px;color:${ACCENT_COLOR};text-align:center;">Your deposit of ₦${data.depositAmount.toLocaleString()} will be refunded within 3-5 business days.</p>` : ''}
       <div style="text-align:center;margin-top:20px;">
-        <a href="https://naijadine.com/restaurants" class="btn">Book Another Restaurant</a>
+        <a href="https://dineroot.com/restaurants" class="btn">Book Another Restaurant</a>
       </div>
     `),
   };
@@ -186,7 +186,7 @@ export function refundEmail(data: { guestName: string; amount: number; restauran
 
 export function noShowWarningEmail(data: { guestName: string; restaurantName: string; strikeCount: number; maxStrikes: number }): { subject: string; html: string } {
   return {
-    subject: 'No-Show Warning — NaijaDine',
+    subject: 'No-Show Warning — DineRoot',
     html: baseLayout(`
       <div style="text-align:center; margin-bottom:20px;">
         <div style="width:48px;height:48px;border-radius:50%;background:#fef3c7;display:inline-flex;align-items:center;justify-content:center;">
@@ -215,7 +215,7 @@ export function whatsappSetupPendingEmail(data: { ownerName: string; businessNam
       </div>
       <h2 style="text-align:center;color:#111827;margin:0 0 8px;">Application Received!</h2>
       <p style="text-align:center;color:#6b7280;margin:0 0 24px;">
-        Hi ${data.ownerName}, thanks for signing up <strong>${data.businessName}</strong> on NaijaDine.
+        Hi ${data.ownerName}, thanks for signing up <strong>${data.businessName}</strong> on DineRoot.
       </p>
       <div style="background:#f0f9ff;border-radius:8px;padding:16px;margin-bottom:20px;">
         <p style="font-size:14px;color:#1e40af;margin:0 0 8px;font-weight:600;">What happens next?</p>
@@ -237,7 +237,7 @@ export function whatsappSetupCompleteEmail(data: { ownerName: string; businessNa
     : '';
 
   return {
-    subject: `${data.businessName} is live on NaijaDine!`,
+    subject: `${data.businessName} is live on DineRoot!`,
     html: baseLayout(`
       <div style="text-align:center; margin-bottom:20px;">
         <div style="width:48px;height:48px;border-radius:50%;background:#d1fae5;display:inline-flex;align-items:center;justify-content:center;">
@@ -259,7 +259,7 @@ export function whatsappSetupCompleteEmail(data: { ownerName: string; businessNa
         <p style="font-size:13px;color:#374151;margin:4px 0;">3. Manage bookings from your dashboard</p>
       </div>
       <div style="text-align:center;margin:20px 0;">
-        <a href="https://dashboard.naijadine.com" class="btn">Go to Dashboard</a>
+        <a href="https://dashboard.dineroot.com" class="btn">Go to Dashboard</a>
       </div>
     `),
   };
@@ -267,7 +267,7 @@ export function whatsappSetupCompleteEmail(data: { ownerName: string; businessNa
 
 export function restaurantApprovedEmail(data: { ownerName: string; restaurantName: string }): { subject: string; html: string } {
   return {
-    subject: `Congratulations! ${data.restaurantName} is live on NaijaDine`,
+    subject: `Congratulations! ${data.restaurantName} is live on DineRoot`,
     html: baseLayout(`
       <div style="text-align:center; margin-bottom:20px;">
         <div style="width:48px;height:48px;border-radius:50%;background:#d1fae5;display:inline-flex;align-items:center;justify-content:center;">
@@ -275,9 +275,9 @@ export function restaurantApprovedEmail(data: { ownerName: string; restaurantNam
         </div>
       </div>
       <h2 style="text-align:center;color:#111827;margin:0 0 8px;">You're Live!</h2>
-      <p style="text-align:center;color:#6b7280;margin:0 0 24px;">Hi ${data.ownerName}, ${data.restaurantName} is now live on NaijaDine and ready to receive reservations.</p>
+      <p style="text-align:center;color:#6b7280;margin:0 0 24px;">Hi ${data.ownerName}, ${data.restaurantName} is now live on DineRoot and ready to receive reservations.</p>
       <div style="text-align:center;margin:20px 0;">
-        <a href="https://dashboard.naijadine.com" class="btn">Go to Dashboard</a>
+        <a href="https://dashboard.dineroot.com" class="btn">Go to Dashboard</a>
       </div>
     `),
   };

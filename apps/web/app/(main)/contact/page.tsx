@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Contact Us — NaijaDine',
-  description: 'Get in touch with the NaijaDine team. We\'d love to hear from you.',
+  title: 'Contact Us — DineRoot',
+  description: 'Get in touch with the DineRoot team. We\'d love to hear from you.',
 };
 
 export default function ContactPage() {
@@ -18,8 +18,8 @@ export default function ContactPage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-900">General Enquiries</h2>
             <p className="mt-1 text-sm text-gray-600">
-              <a href="mailto:hello@naijadine.com" className="text-brand hover:underline">
-                hello@naijadine.com
+              <a href="mailto:hello@dineroot.com" className="text-brand hover:underline">
+                hello@dineroot.com
               </a>
             </p>
           </div>
@@ -27,11 +27,11 @@ export default function ContactPage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Restaurant Partnerships</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Want to list your restaurant on NaijaDine?
+              Want to list your restaurant on DineRoot?
             </p>
             <p className="mt-1 text-sm text-gray-600">
-              <a href="mailto:partners@naijadine.com" className="text-brand hover:underline">
-                partners@naijadine.com
+              <a href="mailto:partners@dineroot.com" className="text-brand hover:underline">
+                partners@dineroot.com
               </a>
             </p>
           </div>
@@ -42,8 +42,8 @@ export default function ContactPage() {
               Need help with a reservation or your account?
             </p>
             <p className="mt-1 text-sm text-gray-600">
-              <a href="mailto:support@naijadine.com" className="text-brand hover:underline">
-                support@naijadine.com
+              <a href="mailto:support@dineroot.com" className="text-brand hover:underline">
+                support@dineroot.com
               </a>
             </p>
           </div>
@@ -58,7 +58,7 @@ export default function ContactPage() {
 
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-6">
           <h2 className="text-lg font-semibold text-gray-900">Send a Message</h2>
-          <form className="mt-4 space-y-4" action="mailto:hello@naijadine.com" method="GET">
+          <form className="mt-4 space-y-4" action="mailto:hello@dineroot.com" method="GET">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
               <input

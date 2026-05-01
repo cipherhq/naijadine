@@ -10,22 +10,22 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#1B4332',
-          50: '#E8F5EE',
-          100: '#D1EBDD',
-          200: '#A3D7BB',
-          300: '#75C399',
-          400: '#47AF77',
-          500: '#2D6A4F',
-          600: '#1B4332',
-          700: '#153628',
-          800: '#0F291E',
-          900: '#091C14',
+          DEFAULT: '#F04E37',
+          50: '#FEF2F0',
+          100: '#FDE5E1',
+          200: '#FACBC3',
+          300: '#F7A99C',
+          400: '#F47A69',
+          500: '#F04E37',
+          600: '#D93A24',
+          700: '#B42E1C',
+          800: '#8F2416',
+          900: '#6A1B10',
         },
         accent: {
-          DEFAULT: '#2D6A4F',
-          light: '#40916C',
-          dark: '#1B4332',
+          DEFAULT: '#D93A24',
+          light: '#F47A69',
+          dark: '#B42E1C',
         },
         gold: {
           DEFAULT: '#E8A817',
@@ -43,6 +43,19 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        card: '1rem',       // 16px — all cards
+        button: '0.75rem',  // 12px — buttons & inputs
+        pill: '9999px',     // full — pills & badges
+      },
+      boxShadow: {
+        card: '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+        'card-hover': '0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04)',
+        sticky: '0 -4px 12px rgba(0, 0, 0, 0.05)',
+      },
+      spacing: {
+        section: '3.5rem', // 56px — standard section padding
       },
     },
   },
